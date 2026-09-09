@@ -18,7 +18,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <!-- ملف الأنماط والتنسيق -->
-    <link rel="stylesheet" href="css/style.css?v=3.1">
+    <link rel="stylesheet" href="css/style.css?v=3.2">
 </head>
 <body>
 
@@ -48,6 +48,10 @@
                 <i class="fas fa-chair"></i>
                 <span class="nav-tooltip">الطاولات</span>
             </button>
+            <button class="nav-tab-btn" id="tab-btn-items" onclick="switchView('items')" title="إدارة قائمة الطعام والأصناف">
+                <i class="fas fa-utensils"></i>
+                <span class="nav-tooltip">الأصناف والمنيو</span>
+            </button>
             <button class="nav-tab-btn" id="tab-btn-hr" onclick="switchView('hr')" title="شؤون الموظفين والرواتب">
                 <i class="fas fa-users-cog"></i>
                 <span class="nav-tooltip">الموظفين والرواتب</span>
@@ -59,6 +63,10 @@
             <button class="nav-tab-btn" id="tab-btn-reports" onclick="switchView('reports')" title="التقارير المالية وصافي الأرباح">
                 <i class="fas fa-chart-line"></i>
                 <span class="nav-tooltip">التقارير والأرباح</span>
+            </button>
+            <button class="nav-tab-btn" id="tab-btn-settings" onclick="switchView('settings')" title="إعدادات النظام والمطعم الشاملة">
+                <i class="fas fa-cog"></i>
+                <span class="nav-tooltip">الإعدادات</span>
             </button>
         </nav>
 
@@ -86,8 +94,8 @@
                 <span id="pending-orders-badge" class="badge-count" style="display: none;">0</span>
             </button>
 
-            <!-- زر الإعدادات -->
-            <button class="btn-icon-text" onclick="openModal('settings-modal')" title="إعدادات الربط والنظام">
+            <!-- زر الإعدادات الكاملة -->
+            <button class="btn-icon-text" onclick="switchView('settings')" title="إعدادات النظام الشاملة">
                 <i class="fas fa-cog"></i>
             </button>
         </div>
@@ -178,9 +186,13 @@
                     <button class="btn-clear-cart" onclick="clearCart()" title="تفريغ السلة">
                         <i class="fas fa-trash"></i>
                     </button>
+                    <button class="btn-hold-table" id="btn-save-table" onclick="saveTableOrderPartial()" title="حفظ وتعليق الطلب داخل الطاولة بدون محاسبة" disabled>
+                        <i class="fas fa-save"></i>
+                        <span>حفظ بالطاولة</span>
+                    </button>
                     <button class="btn-checkout" id="btn-checkout" onclick="submitOrder()" disabled>
                         <i class="fas fa-print"></i>
-                        <span>دفع وطباعة الإيصال</span>
+                        <span>دفع وطباعة</span>
                     </button>
                 </div>
             </div>
@@ -515,6 +527,272 @@
                             </thead>
                             <tbody id="today-orders-table-body"></tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- =====================================================================
+         6️⃣ صفحة إدارة قائمة الطعام والأصناف (Items & Menu Management View)
+         ===================================================================== -->
+    <main class="view-page" id="view-items">
+        <div class="page-inner-scroll">
+            <div class="page-header-row">
+                <div class="page-title">
+                    <h2><i class="fas fa-utensils" style="color: var(--primary);"></i> إدارة قائمة الطعام والأصناف</h2>
+                    <p>إضافة وتعديل الأصناف، ضبط الأسعار، توفر الوجبات، وإدارة الخيارات والأحجام</p>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn-icon-text" onclick="syncMenuData()" title="مزامنة مع السيرفر">
+                        <i class="fas fa-sync-alt"></i> مزامنة
+                    </button>
+                    <button class="btn-primary-action" onclick="openAddItemModal()">
+                        <i class="fas fa-plus-circle"></i>
+                        <span>إضافة صنف جديد</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- بطاقات إحصائيات الأصناف -->
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-info-col">
+                        <span class="kpi-label">إجمالي الأصناف</span>
+                        <span class="kpi-val primary" id="kpi-items-total">0</span>
+                    </div>
+                    <div class="kpi-icon-box blue"><i class="fas fa-hamburger"></i></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-info-col">
+                        <span class="kpi-label">أصناف متاحة</span>
+                        <span class="kpi-val positive" id="kpi-items-available">0</span>
+                    </div>
+                    <div class="kpi-icon-box green"><i class="fas fa-check-circle"></i></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-info-col">
+                        <span class="kpi-label">أصناف غير متاحة / نافدة</span>
+                        <span class="kpi-val negative" id="kpi-items-unavailable">0</span>
+                    </div>
+                    <div class="kpi-icon-box red"><i class="fas fa-ban"></i></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-info-col">
+                        <span class="kpi-label">إجمالي التصنيفات</span>
+                        <span class="kpi-val warning" id="kpi-categories-total">0</span>
+                    </div>
+                    <div class="kpi-icon-box amber"><i class="fas fa-tags"></i></div>
+                </div>
+            </div>
+
+            <!-- جدول إدارة الأصناف مع البحث والفلترة -->
+            <div class="table-container-card">
+                <div class="table-toolbar" style="flex-wrap: wrap; gap: 12px;">
+                    <div class="table-search-box" style="flex: 1; min-width: 240px;">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="items-search-input" placeholder="ابحث باسم الصنف أو السعر...">
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <select id="items-category-filter" class="form-control" style="padding: 6px 12px; font-size: 0.85rem; width: auto;" onchange="filterItemsTable()">
+                            <option value="all">جميع التصنيفات</option>
+                        </select>
+                        <select id="items-status-filter" class="form-control" style="padding: 6px 12px; font-size: 0.85rem; width: auto;" onchange="filterItemsTable()">
+                            <option value="all">كل الحالات</option>
+                            <option value="available">متاح فقط</option>
+                            <option value="unavailable">نافد / موقوف</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="table-scroll-wrap">
+                    <table class="custom-data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 60px;">الصورة</th>
+                                <th>اسم الصنف</th>
+                                <th>التصنيف</th>
+                                <th>السعر الأساسي</th>
+                                <th>الخيارات والأحجام</th>
+                                <th>الحالة</th>
+                                <th style="width: 120px;">إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="menu-items-table-body">
+                            <!-- توليد الأصناف ديناميكياً -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- =====================================================================
+         7️⃣ صفحة الإعدادات العامة الشاملة (Full Settings View)
+         ===================================================================== -->
+    <main class="view-page" id="view-settings">
+        <div class="page-inner-scroll">
+            <div class="page-header-row">
+                <div class="page-title">
+                    <h2><i class="fas fa-cog" style="color: var(--primary);"></i> إعدادات النظام والمطعم الشاملة</h2>
+                    <p>تخصيص هوية المطعم، بيانات الفاتورة الحرارية، خيارات الطباعة الفورية، والربط السحابي مع المنيو</p>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn-primary-action" onclick="saveFullSettingsFromPage()">
+                        <i class="fas fa-save"></i>
+                        <span>حفظ كل التغييرات</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="settings-sections-grid">
+                <!-- 1. هوية المطعم والفاتورة -->
+                <div class="settings-card">
+                    <div class="settings-card-header">
+                        <i class="fas fa-store"></i>
+                        <h3>هوية المطعم وبيانات الفاتورة</h3>
+                    </div>
+                    <div class="settings-card-body">
+                        <div class="form-group">
+                            <label>اسم المطعم (الظاهر بالفاتورة وأعلى الشاشة):</label>
+                            <input type="text" id="setting-store-name" class="form-control" placeholder="مطعم وكافيه المدينة">
+                        </div>
+                        <div class="form-grid-2">
+                            <div class="form-group">
+                                <label>رقم هاتف المطعم:</label>
+                                <input type="text" id="setting-store-phone" class="form-control" placeholder="0501234567">
+                            </div>
+                            <div class="form-group">
+                                <label>رمز العملة:</label>
+                                <input type="text" id="setting-currency" class="form-control" placeholder="ر.س أو ل.س أو ج.م">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>عنوان المطعم التفصيلي (يظهر في ترويسة الفاتورة الحرارية):</label>
+                            <input type="text" id="setting-store-address" class="form-control" placeholder="مثال: حلب - الصاخور - سوق الخضار">
+                        </div>
+                        <div class="form-grid-2">
+                            <div class="form-group">
+                                <label>نسبة ضريبة القيمة المضافة (%):</label>
+                                <input type="number" id="setting-tax-percent" class="form-control" min="0" step="0.5" value="15">
+                            </div>
+                            <div class="form-group">
+                                <label>عرض ورق الطباعة الحرارية:</label>
+                                <select id="setting-printer-width" class="form-control">
+                                    <option value="80mm">80 ملم (طابعات الكاشير القياسية الكبيرة - الموصى به)</option>
+                                    <option value="58mm">58 ملم (طابعات الفواتير الصغيرة والمحمولة)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>جملة تذييل الفاتورة:</label>
+                            <input type="text" id="setting-receipt-footer" class="form-control" placeholder="شكراً لزيارتكم ونتمنى لكم وجبة شهية!">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. الطباعة الفورية والتنبيهات -->
+                <div class="settings-card">
+                    <div class="settings-card-header">
+                        <i class="fas fa-print"></i>
+                        <h3>إعدادات الطباعة الفورية والتنبيهات</h3>
+                    </div>
+                    <div class="settings-card-body">
+                        <div class="toggle-group-card">
+                            <label class="switch-toggle-row">
+                                <div>
+                                    <strong>🖨️ الطباعة التلقائية للطلبات الواردة</strong>
+                                    <p style="font-size: 0.8rem; color: #64748b; margin: 2px 0 0;">طباعة أي طلب جديد فور وصوله من المنيو الإلكتروني تلقائياً</p>
+                                </div>
+                                <input type="checkbox" id="setting-auto-print">
+                            </label>
+                            <label class="switch-toggle-row">
+                                <div>
+                                    <strong>🔔 نغمة التنبيه الصوتية</strong>
+                                    <p style="font-size: 0.8rem; color: #64748b; margin: 2px 0 0;">تشغيل رنين مسموع لتنبيه الكاشير عند استقبال طلب جديد</p>
+                                </div>
+                                <input type="checkbox" id="setting-sound-alert">
+                            </label>
+                        </div>
+
+                        <div style="display: flex; gap: 8px; margin-top: 15px;">
+                            <button type="button" class="btn-icon-text" onclick="testSound()">
+                                <i class="fas fa-volume-up"></i> تجربة الصوت
+                            </button>
+                            <button type="button" class="btn-icon-text" onclick="testPrint()">
+                                <i class="fas fa-print"></i> تجربة طباعة الفاتورة
+                            </button>
+                        </div>
+
+                        <!-- إرشادات الطباعة الفورية Kiosk Printing -->
+                        <div class="kiosk-info-banner" style="margin-top: 15px; padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px;">
+                            <div style="font-weight: 800; color: #166534; font-size: 0.9rem; margin-bottom: 4px;">
+                                <i class="fas fa-bolt"></i> ميزة الطباعة الصامتة الفورية (بدون شاشة معاينة كروم)
+                            </div>
+                            <p style="font-size: 0.8rem; color: #15803d; line-height: 1.4; margin: 0 0 8px;">
+                                تم تجهيز ملف تشغيل فوري على جهازك لتخطي شاشة المعاينة تماماً، وطباعة الفاتورة بضغطة واحدة إلى الطابعة الافتراضية مباشرة!
+                            </p>
+                            <div style="font-size: 0.78rem; background: #fff; padding: 6px 10px; border-radius: 6px; border: 1px solid #dcfce7; font-family: monospace; color: #166534;">
+                                تشغيل_كاشير_CODEART_طباعة_فورية.bat
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. الربط السحابي والـ API -->
+                <div class="settings-card">
+                    <div class="settings-card-header">
+                        <i class="fas fa-cloud"></i>
+                        <h3>الربط السحابي مع منيو المطعم (API)</h3>
+                    </div>
+                    <div class="settings-card-body">
+                        <div class="form-group">
+                            <label>رابط الـ API السحابي (api.php):</label>
+                            <input type="url" id="setting-api-url" class="form-control ltr-input" placeholder="https://codeart.almagd555.com/api.php">
+                        </div>
+                        <div class="form-grid-2">
+                            <div class="form-group">
+                                <label>اسم المستخدم (user):</label>
+                                <input type="text" id="setting-username" class="form-control ltr-input" placeholder="username">
+                            </div>
+                            <div class="form-group">
+                                <label>مفتاح الربط (token):</label>
+                                <input type="text" id="setting-token" class="form-control ltr-input" placeholder="token">
+                            </div>
+                        </div>
+
+                        <div style="margin-top: 10px;">
+                            <label style="font-size: 0.8rem; color: #64748b; margin-bottom: 6px; display: block;">مطاعم تجريبية جاهزة للربط الفوري:</label>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                <button type="button" class="btn-icon-text" style="font-size: 0.78rem;" onclick="applyPresetToSettingsPage('al-madina')">مطعم المدينة</button>
+                                <button type="button" class="btn-icon-text" style="font-size: 0.78rem;" onclick="applyPresetToSettingsPage('chixee')">Chixee.fc</button>
+                                <button type="button" class="btn-icon-text" style="font-size: 0.78rem;" onclick="applyPresetToSettingsPage('tajin')">مطعم طاجن</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. النسخ الاحتياطي وإدارة البيانات -->
+                <div class="settings-card">
+                    <div class="settings-card-header">
+                        <i class="fas fa-database"></i>
+                        <h3>النسخ الاحتياطي وإدارة البيانات (Backup & Restore)</h3>
+                    </div>
+                    <div class="settings-card-body">
+                        <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 12px;">
+                            حفظ نسخة احتياطية كاملة من كل بيانات الكاشير (المبيعات، الطاولات، الأصناف، شؤون الموظفين، والمصاريف) أو استرجاعها عند الحاجة.
+                        </p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            <button type="button" class="btn-icon-text" onclick="exportSystemBackup()" style="color: var(--primary);">
+                                <i class="fas fa-download"></i> تصدير نسخة احتياطية (JSON)
+                            </button>
+                            <label class="btn-icon-text" style="cursor: pointer;">
+                                <i class="fas fa-upload"></i> استعادة نسخة سابقة
+                                <input type="file" id="backup-file-input" accept=".json" style="display: none;" onchange="importSystemBackup(event)">
+                            </label>
+                            <button type="button" class="btn-icon-text danger" onclick="resetSystemDataConfirm()">
+                                <i class="fas fa-undo"></i> استعادة البيانات الافتراضية
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -920,8 +1198,72 @@
     </div>
 </div>
 
+<!-- نافذة إضافة وتعديل صنف في المنيو -->
+<div class="modal-overlay" id="item-edit-modal">
+    <div class="modal-card" style="max-width: 540px;">
+        <div class="modal-header">
+            <h3 id="item-edit-modal-title"><i class="fas fa-utensils" style="color: var(--primary);"></i> إضافة صنف جديد</h3>
+            <button class="modal-close-btn" onclick="closeModal('item-edit-modal')">&times;</button>
+        </div>
+        <form id="item-edit-form">
+            <input type="hidden" id="item-edit-id">
+            <div class="modal-body">
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label>اسم الصنف *:</label>
+                        <input type="text" id="item-edit-name" required placeholder="مثال: شاورما دجاج سوبر" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label>السعر الأساسي *:</label>
+                        <input type="number" id="item-edit-price" required step="0.5" min="0" placeholder="مثال: 35" class="form-control">
+                    </div>
+                </div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label>التصنيف *:</label>
+                        <input type="text" id="item-edit-category" list="categories-datalist" required placeholder="اختر أو اكتب تصنيف جديد" class="form-control">
+                        <datalist id="categories-datalist"></datalist>
+                    </div>
+                    <div class="form-group">
+                        <label>حالة التوفر:</label>
+                        <select id="item-edit-available" class="form-control">
+                            <option value="1">✅ متاح للطلب في المنيو</option>
+                            <option value="0">❌ نافد / موقوف مؤقتاً</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>وصف الصنف / المكونات:</label>
+                    <textarea id="item-edit-desc" rows="2" class="form-control" placeholder="مكونات الصنف، تتبيلة خاصة، حجم الوجبة..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>رابط صورة الصنف (اختياري):</label>
+                    <input type="text" id="item-edit-image" class="form-control ltr-input" placeholder="https://example.com/item.jpg">
+                </div>
+
+                <!-- خيارات وأحجام إضافية Variations -->
+                <div style="border-top: 1px dashed var(--border-color); padding-top: 10px; margin-top: 10px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <label style="font-weight: 700; font-size: 0.88rem; margin: 0;">الخيارات والأحجام الإضافية (اختياري):</label>
+                        <button type="button" class="btn-icon-text" style="font-size: 0.75rem; padding: 3px 8px;" onclick="addVariationRow()">
+                            <i class="fas fa-plus"></i> إضافة حجم/خيار
+                        </button>
+                    </div>
+                    <div id="item-edit-variations-container" style="display: flex; flex-direction: column; gap: 6px;">
+                        <!-- حقول الخيارات الديناميكية -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-icon-text" onclick="closeModal('item-edit-modal')">إلغاء</button>
+                <button type="submit" class="btn-checkout" style="flex: initial; padding: 10px 24px;"><i class="fas fa-save"></i> حفظ الصنف</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- ملف الجافاسكريبت الرئيسي المطور -->
-<script src="js/app.js?v=3.1"></script>
+<script src="js/app.js?v=3.2"></script>
 
 <!-- تسجيل الـ Service Worker لتشغيل PWA -->
 <script>

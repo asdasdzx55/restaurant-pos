@@ -129,6 +129,8 @@ function switchView(viewName) {
     if (viewName === 'hr') renderHR();
     if (viewName === 'expenses') renderExpenses();
     if (viewName === 'reports') renderReports();
+    if (viewName === 'items') renderItemsManagement();
+    if (viewName === 'settings') renderSettingsPage();
     if (viewName === 'pos') renderCart();
 }
 
@@ -207,6 +209,28 @@ function loadERPData() {
         } catch(e) {}
     }
 
+    // إذا لم تكن هناك أصناف، تحميل قائمة نموذجية افتراضية غنية
+    if (!state.items || state.items.length === 0) {
+        state.categories = [
+            { id: 1, name: 'وجبات وساندوتشات' },
+            { id: 2, name: 'بيتزا وفطائر' },
+            { id: 3, name: 'مقبلات وبطاطس' },
+            { id: 4, name: 'مشروبات وعصائر' }
+        ];
+        state.items = [
+            { id: 101, name: 'وجبة زنجر المدينة سوبريم', price: 35, category_id: 1, available: true, description: 'صدر دجاج مقرمش مع جبنة شيدر وصوص خاص وخس وبطاطس', has_variations: true, variations: [{ name: 'ساندوتش فقط', price: 25 }, { name: 'وجبة كاملة مع بطاطس ومشروب', price: 35 }, { name: 'وجبة دبل ماكس', price: 42 }] },
+            { id: 102, name: 'شاورما دجاج عربي', price: 28, category_id: 1, available: true, description: 'شاورما دجاج متبلة مقطعة مع بطاطس ومخلل وثومية وخبز صاج', has_variations: true, variations: [{ name: 'عربي عادي', price: 28 }, { name: 'عربي دبل', price: 38 }] },
+            { id: 103, name: 'برجر لحم بلدي مشوي', price: 32, category_id: 1, available: true, description: 'برجر لحم بقري طازج مشوي على الفحم مع صوص الشيف', has_variations: false, variations: [] },
+            { id: 104, name: 'بيتزا رانش دجاج إيطالية', price: 45, category_id: 2, available: true, description: 'عجينة إيطالية هشة، قطع دجاج، صوص رانش، جبنة موزاريلا', has_variations: true, variations: [{ name: 'وسط (Medium)', price: 45 }, { name: 'كبير (Large)', price: 60 }] },
+            { id: 105, name: 'بيتزا مارجريتا كلاسيك', price: 38, category_id: 2, available: true, description: 'صلصة طماطم إيطالية مع ريحان طازج وجبنة موزاريلا', has_variations: true, variations: [{ name: 'وسط (Medium)', price: 38 }, { name: 'كبير (Large)', price: 50 }] },
+            { id: 106, name: 'بطاطس مقلية متبلة مع جبنة', price: 15, category_id: 3, available: true, description: 'أصابع بطاطس ذهبية مع صوص الجبن والبهارات', has_variations: false, variations: [] },
+            { id: 107, name: 'حلقات بصل مقرمشة (8 قطع)', price: 14, category_id: 3, available: true, description: 'حلقات بصل مقرمشة مع صوص الرانش', has_variations: false, variations: [] },
+            { id: 108, name: 'عصير برتقال طازج 100%', price: 12, category_id: 4, available: true, description: 'برتقال معصور طازج بدون سكر مضاف', has_variations: false, variations: [] },
+            { id: 109, name: 'مشروب غازي بارد (كانز)', price: 5, category_id: 4, available: true, description: 'بيبسي / سفن اب / ميرندا', has_variations: false, variations: [] }
+        ];
+        saveMenuData();
+    }
+
     // 7. قائمة الطلبات المعلقة للإرسال عند عودة النت (Offline Queue)
     const savedQueue = localStorage.getItem('codeart_pos_offline_queue');
     if (savedQueue) {
@@ -220,6 +244,17 @@ function savePayroll() { localStorage.setItem('codeart_pos_payroll', JSON.string
 function saveExpenses() { localStorage.setItem('codeart_pos_expenses', JSON.stringify(state.expenses)); }
 function saveOfflineQueue() { localStorage.setItem('codeart_pos_offline_queue', JSON.stringify(state.offlineOrdersQueue || [])); }
 function saveOrdersHistory() { localStorage.setItem('codeart_pos_orders_history', JSON.stringify(state.ordersHistory)); }
+function saveMenuData() {
+    localStorage.setItem('codeart_pos_menu_cache', JSON.stringify({
+        categories: state.categories,
+        items: state.items
+    }));
+    renderCategories();
+    renderItems();
+    if (state.currentView === 'items') {
+        renderItemsManagement();
+    }
+}
 
 // =============================================================================
 // إعدادات الربط والمنيو
@@ -579,6 +614,7 @@ function renderCart() {
     const container = document.getElementById('cart-items-list');
     const emptyState = document.getElementById('empty-cart-state');
     const btnCheckout = document.getElementById('btn-checkout');
+    const btnSaveTable = document.getElementById('btn-save-table');
     const clearTableBtn = document.getElementById('btn-clear-active-table');
 
     if (clearTableBtn) {
@@ -589,12 +625,14 @@ function renderCart() {
         container.innerHTML = '';
         emptyState.style.display = 'flex';
         btnCheckout.disabled = true;
+        if (btnSaveTable) btnSaveTable.disabled = true;
         updateTotals(0);
         return;
     }
 
     emptyState.style.display = 'none';
     btnCheckout.disabled = false;
+    if (btnSaveTable) btnSaveTable.disabled = false;
     container.innerHTML = '';
     let subtotal = 0;
 
@@ -643,6 +681,54 @@ function updateTotals(subtotal) {
     document.getElementById('summary-subtotal').textContent = `${subtotal.toFixed(2)} ${state.settings.currency}`;
     document.getElementById('summary-tax').textContent = `${taxAmount.toFixed(2)} ${state.settings.currency}`;
     document.getElementById('summary-total').textContent = `${grandTotal.toFixed(2)} ${state.settings.currency}`;
+}
+
+// حفظ طلب الطاولة جزئياً كطلب معلق بدون تأكيد أو محاسبة
+function saveTableOrderPartial() {
+    if (state.cart.length === 0) {
+        showToast('السلة فارغة! اختر أصنافاً أولاً لحفظها داخل الطاولة', 'warning');
+        return;
+    }
+
+    const tableLabel = document.getElementById('table-num-input')?.value.trim() || 'طاولة 1';
+    let targetTable = null;
+
+    if (state.activeTableId) {
+        targetTable = state.tables.find(t => t.id === state.activeTableId);
+    }
+    if (!targetTable) {
+        targetTable = state.tables.find(t => t.name.trim() === tableLabel);
+    }
+
+    if (!targetTable) {
+        // إنشاء طاولة جديدة تلقائياً إذا لم تكن مسجلة مسبقاً
+        targetTable = {
+            id: Date.now(),
+            name: tableLabel,
+            seats: 4,
+            status: 'occupied',
+            orderItems: [],
+            orderTotal: 0,
+            openedAt: new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' })
+        };
+        state.tables.push(targetTable);
+    }
+
+    // حفظ الأصناف والمجموع داخل الطاولة
+    targetTable.status = 'occupied';
+    targetTable.orderItems = JSON.parse(JSON.stringify(state.cart));
+    targetTable.orderTotal = state.cart.reduce((sum, it) => sum + (it.price * it.quantity), 0);
+    if (!targetTable.openedAt) {
+        targetTable.openedAt = new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    saveTables();
+    renderTables();
+
+    showToast(`✅ تم حفظ الطلب بنجاح في "${targetTable.name}" كطلب معلق داخل الطاولة!`, 'success');
+
+    // إفراغ السلة للشاشة لتكون جاهزة لطلب زبون آخر
+    clearCart();
 }
 
 async function submitOrder() {
@@ -1784,6 +1870,14 @@ function initEventListeners() {
     document.getElementById('expense-search-input')?.addEventListener('input', () => {
         renderExpenses();
     });
+
+    // 7. نموذج إضافة / تعديل صنف في المنيو
+    document.getElementById('item-edit-form')?.addEventListener('submit', saveItemFromModal);
+
+    // فلترة وبحث الأصناف
+    document.getElementById('items-search-input')?.addEventListener('input', () => {
+        filterItemsTable();
+    });
 }
 
 function openModal(id) {
@@ -1828,6 +1922,431 @@ function testPrint() {
         total_price: 620,
         created_at: new Date().toLocaleTimeString('ar-SA')
     });
+}
+
+// =============================================================================
+// 6️⃣ إدارة قائمة الطعام والأصناف (Items & Menu Management Engine)
+// =============================================================================
+function renderItemsManagement() {
+    const total = state.items.length;
+    const available = state.items.filter(it => it.available !== false && it.available !== 0 && it.available !== '0').length;
+    const unavailable = total - available;
+    const categoriesCount = state.categories.length;
+
+    if (document.getElementById('kpi-items-total')) document.getElementById('kpi-items-total').textContent = total;
+    if (document.getElementById('kpi-items-available')) document.getElementById('kpi-items-available').textContent = available;
+    if (document.getElementById('kpi-items-unavailable')) document.getElementById('kpi-items-unavailable').textContent = unavailable;
+    if (document.getElementById('kpi-categories-total')) document.getElementById('kpi-categories-total').textContent = categoriesCount;
+
+    // تحديث قائمة الفلترة للتصنيفات
+    const catFilter = document.getElementById('items-category-filter');
+    if (catFilter) {
+        const currentSelected = catFilter.value;
+        catFilter.innerHTML = '<option value="all">جميع التصنيفات</option>';
+        state.categories.forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = cat.id;
+            opt.textContent = cat.name;
+            catFilter.appendChild(opt);
+        });
+        catFilter.value = currentSelected || 'all';
+    }
+
+    // تحديث datalist للتصنيفات في نموذج الإضافة
+    const datalist = document.getElementById('categories-datalist');
+    if (datalist) {
+        datalist.innerHTML = '';
+        state.categories.forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = cat.name;
+            datalist.appendChild(opt);
+        });
+    }
+
+    filterItemsTable();
+}
+
+function filterItemsTable() {
+    const tbody = document.getElementById('menu-items-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    const searchQuery = (document.getElementById('items-search-input')?.value || '').toLowerCase().trim();
+    const catFilter = document.getElementById('items-category-filter')?.value || 'all';
+    const statusFilter = document.getElementById('items-status-filter')?.value || 'all';
+
+    let list = state.items.filter(it => {
+        // فلتر البحث
+        if (searchQuery) {
+            const matchName = it.name && it.name.toLowerCase().includes(searchQuery);
+            const matchEn = it.name_en && it.name_en.toLowerCase().includes(searchQuery);
+            const matchPrice = String(it.price).includes(searchQuery);
+            if (!matchName && !matchEn && !matchPrice) return false;
+        }
+        // فلتر التصنيف
+        if (catFilter !== 'all') {
+            if (String(it.category_id) !== String(catFilter)) return false;
+        }
+        // فلتر الحالة
+        const isAvail = it.available !== false && it.available !== 0 && it.available !== '0';
+        if (statusFilter === 'available' && !isAvail) return false;
+        if (statusFilter === 'unavailable' && isAvail) return false;
+
+        return true;
+    });
+
+    if (list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #94a3b8; padding: 25px;">لا توجد أصناف مطابقة للبحث</td></tr>`;
+        return;
+    }
+
+    list.forEach(item => {
+        const tr = document.createElement('tr');
+        const isAvail = item.available !== false && item.available !== 0 && item.available !== '0';
+        const cat = state.categories.find(c => String(c.id) === String(item.category_id));
+        const catName = cat ? cat.name : (item.category_name || 'عام');
+
+        let variationsSummary = '<span style="color: #94a3b8;">—</span>';
+        if (item.has_variations && item.variations && item.variations.length > 0) {
+            variationsSummary = item.variations.map(v => `${escapeHtml(v.name || v.title)} (${Number(v.price).toFixed(2)})`).join('، ');
+        }
+
+        const thumbHtml = item.image_url && item.image_url.trim() !== ''
+            ? `<img src="${item.image_url}" alt="${escapeHtml(item.name)}" class="item-table-thumb" onerror="this.outerHTML='<div class=\\'item-table-thumb fallback\\'><i class=\\'fas fa-utensils\\'></i></div>'">`
+            : `<div class="item-table-thumb fallback"><i class="fas fa-utensils"></i></div>`;
+
+        tr.innerHTML = `
+            <td>${thumbHtml}</td>
+            <td>
+                <strong>${escapeHtml(item.name)}</strong>
+                ${item.description ? `<div style="font-size: 0.75rem; color: #64748b; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(item.description)}">${escapeHtml(item.description)}</div>` : ''}
+            </td>
+            <td><span class="badge" style="background: #e0e7ff; color: #4338ca; padding: 3px 8px; border-radius: 6px; font-size: 0.78rem;">${escapeHtml(catName)}</span></td>
+            <td><strong>${Number(item.price).toFixed(2)} ${state.settings.currency}</strong></td>
+            <td style="font-size: 0.8rem; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(variationsSummary)}">${variationsSummary}</td>
+            <td>
+                <span class="status-badge ${isAvail ? 'available' : 'unavailable'}" style="cursor: pointer;" onclick="toggleItemAvailability('${item.id}')" title="اضغط لتبديل حالة التوفر">
+                    <i class="fas ${isAvail ? 'fa-check' : 'fa-ban'}"></i> ${isAvail ? 'متاح' : 'نافد'}
+                </span>
+            </td>
+            <td>
+                <div style="display: flex; gap: 4px;">
+                    <button class="action-btn" onclick="openEditItemModal('${item.id}')" title="تعديل الصنف"><i class="fas fa-pen"></i></button>
+                    <button class="action-btn danger" onclick="deleteItem('${item.id}')" title="حذف الصنف"><i class="fas fa-trash"></i></button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function openAddItemModal() {
+    document.getElementById('item-edit-id').value = '';
+    document.getElementById('item-edit-name').value = '';
+    document.getElementById('item-edit-price').value = '';
+    document.getElementById('item-edit-category').value = '';
+    document.getElementById('item-edit-available').value = '1';
+    document.getElementById('item-edit-desc').value = '';
+    document.getElementById('item-edit-image').value = '';
+    document.getElementById('item-edit-modal-title').innerHTML = '<i class="fas fa-plus-circle" style="color: var(--primary);"></i> إضافة صنف جديد للمنيو';
+    document.getElementById('item-edit-variations-container').innerHTML = '';
+    openModal('item-edit-modal');
+}
+
+function openEditItemModal(itemId) {
+    const item = state.items.find(i => String(i.id) === String(itemId));
+    if (!item) return;
+
+    document.getElementById('item-edit-id').value = item.id;
+    document.getElementById('item-edit-name').value = item.name || '';
+    document.getElementById('item-edit-price').value = item.price || 0;
+    
+    const cat = state.categories.find(c => String(c.id) === String(item.category_id));
+    document.getElementById('item-edit-category').value = cat ? cat.name : (item.category_name || '');
+
+    const isAvail = item.available !== false && item.available !== 0 && item.available !== '0';
+    document.getElementById('item-edit-available').value = isAvail ? '1' : '0';
+    document.getElementById('item-edit-desc').value = item.description || '';
+    document.getElementById('item-edit-image').value = item.image_url || '';
+
+    document.getElementById('item-edit-modal-title').innerHTML = `<i class="fas fa-pen" style="color: var(--primary);"></i> تعديل: ${escapeHtml(item.name)}`;
+
+    const container = document.getElementById('item-edit-variations-container');
+    container.innerHTML = '';
+    if (item.has_variations && Array.isArray(item.variations)) {
+        item.variations.forEach(v => {
+            addVariationRow(v.name || v.title, v.price);
+        });
+    }
+
+    openModal('item-edit-modal');
+}
+
+function addVariationRow(name = '', price = '') {
+    const container = document.getElementById('item-edit-variations-container');
+    if (!container) return;
+
+    const row = document.createElement('div');
+    row.className = 'variation-input-row';
+    row.style.cssText = 'display: flex; gap: 8px; align-items: center; margin-bottom: 6px;';
+    row.innerHTML = `
+        <input type="text" class="form-control var-name" placeholder="اسم الحجم / الخيار (مثال: عائلي، وسط، كومبو)" value="${escapeHtml(name)}" style="flex: 2; font-size: 0.85rem;" required>
+        <input type="number" class="form-control var-price" placeholder="السعر" step="0.5" min="0" value="${price !== '' ? price : ''}" style="flex: 1; font-size: 0.85rem;" required>
+        <button type="button" class="btn-remove-item" onclick="this.parentElement.remove()" title="حذف الخيار"><i class="fas fa-trash"></i></button>
+    `;
+    container.appendChild(row);
+}
+
+function saveItemFromModal(e) {
+    if (e) e.preventDefault();
+    const itemId = document.getElementById('item-edit-id').value;
+    const name = document.getElementById('item-edit-name').value.trim();
+    const price = parseFloat(document.getElementById('item-edit-price').value) || 0;
+    const categoryName = document.getElementById('item-edit-category').value.trim();
+    const available = document.getElementById('item-edit-available').value === '1';
+    const description = document.getElementById('item-edit-desc').value.trim();
+    const image_url = document.getElementById('item-edit-image').value.trim();
+
+    if (!name || isNaN(price)) {
+        showToast('يرجى كتابة اسم الصنف والسعر الأساسي', 'warning');
+        return;
+    }
+
+    // إيجاد أو إنشاء التصنيف
+    let category = state.categories.find(c => c.name.trim().toLowerCase() === categoryName.toLowerCase());
+    if (!category && categoryName) {
+        category = {
+            id: 'cat_' + Date.now(),
+            name: categoryName
+        };
+        state.categories.push(category);
+    }
+    const category_id = category ? category.id : 1;
+
+    // استخراج الخيارات والأحجام
+    const varRows = document.querySelectorAll('#item-edit-variations-container .variation-input-row');
+    const variations = [];
+    varRows.forEach(row => {
+        const vName = row.querySelector('.var-name')?.value.trim();
+        const vPrice = parseFloat(row.querySelector('.var-price')?.value);
+        if (vName && !isNaN(vPrice)) {
+            variations.push({ name: vName, price: vPrice });
+        }
+    });
+
+    if (itemId) {
+        // تعديل صنف قائم
+        const item = state.items.find(i => String(i.id) === String(itemId));
+        if (item) {
+            item.name = name;
+            item.price = price;
+            item.category_id = category_id;
+            item.category_name = category ? category.name : categoryName;
+            item.available = available;
+            item.description = description;
+            item.image_url = image_url;
+            item.has_variations = variations.length > 0;
+            item.variations = variations;
+            showToast(`تم تحديث بيانات "${name}" بنجاح!`, 'success');
+        }
+    } else {
+        // إضافة صنف جديد
+        const newItem = {
+            id: 'it_' + Date.now(),
+            name,
+            price,
+            category_id,
+            category_name: category ? category.name : categoryName,
+            available,
+            description,
+            image_url,
+            has_variations: variations.length > 0,
+            variations
+        };
+        state.items.unshift(newItem);
+        showToast(`تمت إضافة الصنف الجديد "${name}" إلى المنيو بنجاح!`, 'success');
+    }
+
+    saveMenuData();
+    closeModal('item-edit-modal');
+}
+
+function deleteItem(itemId) {
+    const item = state.items.find(i => String(i.id) === String(itemId));
+    if (!item) return;
+
+    if (!confirm(`هل أنت متأكد من حذف صنف "${item.name}" نهائياً من المنيو؟`)) {
+        return;
+    }
+
+    state.items = state.items.filter(i => String(i.id) !== String(itemId));
+    saveMenuData();
+    showToast(`تم حذف الصنف "${item.name}" بنجاح`, 'info');
+}
+
+function toggleItemAvailability(itemId) {
+    const item = state.items.find(i => String(i.id) === String(itemId));
+    if (!item) return;
+
+    const currentStatus = item.available !== false && item.available !== 0 && item.available !== '0';
+    item.available = !currentStatus;
+    saveMenuData();
+    showToast(`صنف "${item.name}" أصبح الآن: ${item.available ? 'متاح للطلب ✅' : 'نافد / موقوف ❌'}`, 'info');
+}
+
+// =============================================================================
+// 7️⃣ إدارة صفحة الإعدادات الشاملة (Full Settings Page Engine)
+// =============================================================================
+function renderSettingsPage() {
+    const s = state.settings;
+    if (document.getElementById('setting-store-name')) document.getElementById('setting-store-name').value = s.storeName || '';
+    if (document.getElementById('setting-store-phone')) document.getElementById('setting-store-phone').value = s.phone || '';
+    if (document.getElementById('setting-currency')) document.getElementById('setting-currency').value = s.currency || 'ر.س';
+    if (document.getElementById('setting-store-address')) document.getElementById('setting-store-address').value = s.storeAddress || '';
+    if (document.getElementById('setting-tax-percent')) document.getElementById('setting-tax-percent').value = s.taxPercent !== undefined ? s.taxPercent : 15;
+    if (document.getElementById('setting-printer-width')) document.getElementById('setting-printer-width').value = s.printerWidth || '80mm';
+    if (document.getElementById('setting-receipt-footer')) document.getElementById('setting-receipt-footer').value = s.receiptFooter || '';
+    if (document.getElementById('setting-auto-print')) document.getElementById('setting-auto-print').checked = s.autoPrint !== false;
+    if (document.getElementById('setting-sound-alert')) document.getElementById('setting-sound-alert').checked = s.soundAlert !== false;
+    if (document.getElementById('setting-api-url')) document.getElementById('setting-api-url').value = s.apiUrl || '';
+    if (document.getElementById('setting-username')) document.getElementById('setting-username').value = s.user || '';
+    if (document.getElementById('setting-token')) document.getElementById('setting-token').value = s.token || '';
+}
+
+function saveFullSettingsFromPage() {
+    state.settings.storeName = document.getElementById('setting-store-name')?.value.trim() || 'كاشير المطعم';
+    state.settings.phone = document.getElementById('setting-store-phone')?.value.trim() || '';
+    state.settings.currency = document.getElementById('setting-currency')?.value.trim() || 'ر.س';
+    state.settings.storeAddress = document.getElementById('setting-store-address')?.value.trim() || '';
+    state.settings.taxPercent = parseFloat(document.getElementById('setting-tax-percent')?.value) || 0;
+    state.settings.printerWidth = document.getElementById('setting-printer-width')?.value || '80mm';
+    state.settings.receiptFooter = document.getElementById('setting-receipt-footer')?.value.trim() || '';
+    state.settings.autoPrint = document.getElementById('setting-auto-print')?.checked ?? true;
+    state.settings.soundAlert = document.getElementById('setting-sound-alert')?.checked ?? true;
+    state.settings.apiUrl = document.getElementById('setting-api-url')?.value.trim() || '';
+    state.settings.user = document.getElementById('setting-username')?.value.trim() || '';
+    state.settings.token = document.getElementById('setting-token')?.value.trim() || '';
+
+    saveSettingsToStorage();
+    applySettingsToDOM();
+    showToast('تم حفظ جميع الإعدادات الشاملة للمطعم والطباعة بنجاح! ✅', 'success');
+
+    if (state.settings.apiUrl && state.settings.user && state.settings.token) {
+        syncMenuData();
+        startOrderPolling();
+    }
+}
+
+function applyPresetToSettingsPage(key) {
+    const preset = DEMO_PRESETS[key];
+    if (!preset) return;
+
+    if (document.getElementById('setting-api-url') && (!document.getElementById('setting-api-url').value || document.getElementById('setting-api-url').value.includes('example.com'))) {
+        document.getElementById('setting-api-url').value = defaultApiUrl;
+    }
+    if (document.getElementById('setting-username')) document.getElementById('setting-username').value = preset.user;
+    if (document.getElementById('setting-token')) document.getElementById('setting-token').value = preset.token;
+    if (document.getElementById('setting-store-name')) document.getElementById('setting-store-name').value = preset.storeName;
+    if (document.getElementById('setting-store-phone') && preset.phone) document.getElementById('setting-store-phone').value = preset.phone;
+
+    showToast(`تم استيراد بيانات ${preset.storeName}! اضغط "حفظ كل التغييرات" لتطبيقها`, 'info');
+}
+
+function exportSystemBackup() {
+    const backupData = {
+        version: '3.2',
+        exportedAt: new Date().toISOString(),
+        settings: state.settings,
+        categories: state.categories,
+        items: state.items,
+        tables: state.tables,
+        employees: state.employees,
+        payroll: state.payroll,
+        expenses: state.expenses,
+        ordersHistory: state.ordersHistory
+    };
+
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CODEART_POS_BACKUP_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('تم تصدير ملف النسخة الاحتياطية بنجاح 💾', 'success');
+}
+
+function importSystemBackup(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (data.settings) {
+                state.settings = { ...state.settings, ...data.settings };
+                saveSettingsToStorage();
+                applySettingsToDOM();
+            }
+            if (Array.isArray(data.categories)) state.categories = data.categories;
+            if (Array.isArray(data.items)) {
+                state.items = data.items;
+                saveMenuData();
+            }
+            if (Array.isArray(data.tables)) {
+                state.tables = data.tables;
+                saveTables();
+            }
+            if (Array.isArray(data.employees)) {
+                state.employees = data.employees;
+                saveEmployees();
+            }
+            if (Array.isArray(data.payroll)) {
+                state.payroll = data.payroll;
+                savePayroll();
+            }
+            if (Array.isArray(data.expenses)) {
+                state.expenses = data.expenses;
+                saveExpenses();
+            }
+            if (Array.isArray(data.ordersHistory)) {
+                state.ordersHistory = data.ordersHistory;
+                saveOrdersHistory();
+            }
+
+            renderTables();
+            renderHR();
+            renderExpenses();
+            renderReports();
+            renderCategories();
+            renderItems();
+            renderSettingsPage();
+            renderItemsManagement();
+
+            showToast('تمت استعادة النسخة الاحتياطية بالكامل بنجاح! 🎉', 'success');
+        } catch (err) {
+            alert('عفواً، الملف غير صالح أو تالف: ' + err.message);
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+}
+
+function resetSystemDataConfirm() {
+    if (!confirm('تحذير: هل أنت متأكد من رغبتك في إعادة ضبط بيانات النظام إلى الإعدادات الأولية؟ ستفقد التعديلات غير المحفوظة.')) {
+        return;
+    }
+    localStorage.removeItem('codeart_pos_settings');
+    localStorage.removeItem('codeart_pos_tables');
+    localStorage.removeItem('codeart_pos_employees');
+    localStorage.removeItem('codeart_pos_payroll');
+    localStorage.removeItem('codeart_pos_expenses');
+    localStorage.removeItem('codeart_pos_orders_history');
+    localStorage.removeItem('codeart_pos_menu_cache');
+    location.reload();
 }
 
 // =============================================================================
