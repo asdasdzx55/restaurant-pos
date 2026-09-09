@@ -1,0 +1,44 @@
+{
+  "name": "كاشير المطاعم السحابي | Cloud POS",
+  "short_name": "Cloud POS",
+  "description": "نظام نقاط بيع وإدارة مطاعم سحابي يعمل بدون إنترنت (Offline-First) وقابل للتثبيت على ويندوز وجميع الأجهزة",
+  "start_url": "./index.html",
+  "scope": "./",
+  "id": "codeart-cloud-pos-app",
+  "display": "standalone",
+  "orientation": "landscape-primary",
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "categories": ["business", "productivity", "food"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "الكاشير",
+      "url": "./index.html#pos",
+      "description": "فتح شاشة البيع السريعة"
+    },
+    {
+      "name": "الطاولات",
+      "url": "./index.html#tables",
+      "description": "خريطة وحالات الطاولات"
+    },
+    {
+      "name": "المصاريف",
+      "url": "./index.html#expenses",
+      "description": "تسجيل المصاريف اليومية"
+    }
+  ]
+}

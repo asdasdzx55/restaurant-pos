@@ -1,0 +1,894 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>نظام إدارة المطاعم السحابي المتكامل | Cloud POS & ERP</title>
+    
+    <!-- خط Cairo وأيقونات Font Awesome -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+    <!-- ملف الأنماط والتنسيق -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app-container">
+    <!-- شريط الرأس العلوي مع أزرار التنقل الرئيسية -->
+    <header class="app-header">
+        <div class="brand-section">
+            <div class="brand-logo">
+                <i class="fas fa-utensils"></i>
+            </div>
+            <div class="brand-info">
+                <h1 id="brand-store-name">كاشير المطعم السحابي</h1>
+                <div id="connection-badge" class="api-status-badge" onclick="openModal('settings-modal')" title="اضغط لضبط الربط بالسيرفر">
+                    <span class="status-dot"></span>
+                    <span id="connection-text">جاري فحص الاتصال...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- شريط التبويبات الرئيسي (أيقونات مدمجة لتوفير المساحة) -->
+        <nav class="main-nav-tabs">
+            <button class="nav-tab-btn active" id="tab-btn-pos" onclick="switchView('pos')" title="الكاشير ونقطة البيع">
+                <i class="fas fa-cash-register"></i>
+                <span class="nav-tooltip">الكاشير (POS)</span>
+            </button>
+            <button class="nav-tab-btn" id="tab-btn-tables" onclick="switchView('tables')" title="خريطة وإدارة الطاولات">
+                <i class="fas fa-chair"></i>
+                <span class="nav-tooltip">الطاولات</span>
+            </button>
+            <button class="nav-tab-btn" id="tab-btn-hr" onclick="switchView('hr')" title="شؤون الموظفين والرواتب">
+                <i class="fas fa-users-cog"></i>
+                <span class="nav-tooltip">الموظفين والرواتب</span>
+            </button>
+            <button class="nav-tab-btn" id="tab-btn-expenses" onclick="switchView('expenses')" title="إدارة المصاريف والمشتريات">
+                <i class="fas fa-wallet"></i>
+                <span class="nav-tooltip">المصاريف</span>
+            </button>
+            <button class="nav-tab-btn" id="tab-btn-reports" onclick="switchView('reports')" title="التقارير المالية وصافي الأرباح">
+                <i class="fas fa-chart-line"></i>
+                <span class="nav-tooltip">التقارير والأرباح</span>
+            </button>
+        </nav>
+
+        <!-- إجراءات سريعة في أقصى اليسار -->
+        <div class="header-actions">
+            <!-- زر تثبيت التطبيق على جهاز الويندوز أو الشاشة -->
+            <button class="btn-install-pwa" id="btn-install-pwa" onclick="installDesktopApp()" title="تثبيت التطبيق على جهاز الكمبيوتر / الشاشة">
+                <i class="fas fa-download"></i>
+                <span>تثبيت البرنامج</span>
+            </button>
+
+            <!-- زر تجربة صوت التنبيه -->
+            <button class="btn-icon-text" onclick="testSound()" title="تجربة رنين الإشعار">
+                <i class="fas fa-bell"></i>
+            </button>
+
+            <!-- زر طباعة تجريبية -->
+            <button class="btn-icon-text" onclick="testPrint()" title="معاينة طباعة الفاتورة">
+                <i class="fas fa-print"></i>
+            </button>
+
+            <!-- زر الطلبات الحية مع العداد -->
+            <button class="btn-icon-text active-indicator" onclick="openModal('incoming-orders-modal')" title="طلبات المنيو الأونلاين">
+                <i class="fas fa-receipt"></i>
+                <span id="pending-orders-badge" class="badge-count" style="display: none;">0</span>
+            </button>
+
+            <!-- زر الإعدادات -->
+            <button class="btn-icon-text" onclick="openModal('settings-modal')" title="إعدادات الربط والنظام">
+                <i class="fas fa-cog"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- =====================================================================
+         1️⃣ صفحة الكاشير ونقطة البيع (POS View)
+         ===================================================================== -->
+    <main class="view-page active" id="view-pos">
+        <!-- قسم قائمة الطعام والتصنيفات (اليمين) -->
+        <section class="menu-section">
+            <div class="filter-bar">
+                <div class="search-box">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" id="search-input" placeholder="ابحث باسم الصنف أو الوصف..." autocomplete="off">
+                </div>
+                <div class="categories-container" id="categories-container">
+                    <button class="category-tab active">🌟 الكل</button>
+                </div>
+            </div>
+
+            <div class="items-grid-wrapper">
+                <div class="items-grid" id="items-grid">
+                    <!-- تعبئة بطاقات الأصناف ديناميكياً -->
+                </div>
+            </div>
+        </section>
+
+        <!-- قسم سلة المبيعات والمحاسبة (اليسار) -->
+        <aside class="cart-section">
+            <!-- اختيار نوع الطلب -->
+            <div class="order-type-tabs">
+                <button class="type-tab active" data-type="dinein">
+                    <i class="fas fa-chair"></i> صالة
+                </button>
+                <button class="type-tab" data-type="takeaway">
+                    <i class="fas fa-shopping-bag"></i> سفري
+                </button>
+                <button class="type-tab" data-type="delivery">
+                    <i class="fas fa-motorcycle"></i> توصيل
+                </button>
+            </div>
+
+            <!-- تفاصيل إضافية حسب نوع الطلب -->
+            <div class="order-type-details" id="table-input-wrapper">
+                <label for="table-num-input"><i class="fas fa-hashtag"></i> الطاولة:</label>
+                <input type="text" id="table-num-input" value="طاولة 1" placeholder="مثال: طاولة 1 أو VIP">
+                <button type="button" class="btn-icon-text" style="padding: 4px 8px; font-size: 0.75rem;" onclick="switchView('tables')" title="اختر من خريطة الطاولات">
+                    <i class="fas fa-th-large"></i> خريطة
+                </button>
+            </div>
+
+            <div class="order-type-details" id="delivery-inputs-wrapper" style="display: none; flex-direction: column; gap: 6px;">
+                <input type="text" id="cust-name" placeholder="اسم العميل">
+                <input type="tel" id="cust-phone" placeholder="رقم الهاتف">
+                <input type="text" id="cust-address" placeholder="عنوان التوصيل">
+            </div>
+
+            <!-- قائمة عناصر السلة -->
+            <div class="cart-items-container" id="cart-items-list"></div>
+
+            <!-- حالة السلة الفارغة -->
+            <div class="empty-cart-state" id="empty-cart-state">
+                <i class="fas fa-cart-arrow-down"></i>
+                <p>السلة فارغة حالياً</p>
+                <span style="font-size: 0.8rem;">اضغط على أي صنف لإضافته للطلب</span>
+            </div>
+
+            <!-- ملخص الحساب -->
+            <div class="cart-summary">
+                <div class="summary-row">
+                    <span>المجموع الجزئي:</span>
+                    <span id="summary-subtotal">0.00 ر.س</span>
+                </div>
+                <div class="summary-row">
+                    <span>ضريبة القيمة المضافة:</span>
+                    <span id="summary-tax">0.00 ر.س</span>
+                </div>
+                <div class="summary-row grand-total">
+                    <span>الإجمالي المستحق:</span>
+                    <span class="total-num" id="summary-total">0.00 ر.س</span>
+                </div>
+
+                <div class="cart-actions">
+                    <button class="btn-clear-cart" onclick="clearCart()" title="تفريغ السلة">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    <button class="btn-checkout" id="btn-checkout" onclick="submitOrder()" disabled>
+                        <i class="fas fa-print"></i>
+                        <span>دفع وطباعة الإيصال</span>
+                    </button>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- =====================================================================
+         2️⃣ صفحة إدارة الطاولات (Tables Floor Plan View)
+         ===================================================================== -->
+    <main class="view-page" id="view-tables">
+        <div class="page-inner-scroll">
+            <div class="page-header-row">
+                <div class="page-title">
+                    <h2><i class="fas fa-chair" style="color: var(--primary);"></i> خريطة وإدارة طاولات المطعم</h2>
+                    <p>متابعة حالة الطاولات في الصالة، فتح الطلبات، والحساب المباشر بنقرة واحدة</p>
+                </div>
+                <div>
+                    <button class="btn-primary-action" onclick="openModal('add-table-modal')">
+                        <i class="fas fa-plus-circle"></i>
+                        <span>إضافة طاولة جديدة</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- بطاقات الإحصائيات السريعة للطاولات -->
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-info-col">
+                        <span class="kpi-label">إجمالي الطاولات</span>
+                        <span class="kpi-val primary" id="kpi-total-tables">0</span>
+                    </div>
+                    <div class="kpi-icon-box blue"><i class="fas fa-th-large"></i></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-info-col">
+                        <span class="kpi-label">طاولات فارغة (متاحة)</span>
+                        <span class="kpi-val positive" id="kpi-vacant-tables">0</span>
+                    </div>
+                    <div class="kpi-icon-box green"><i class="fas fa-check-circle"></i></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-info-col">
+                        <span class="kpi-label">طاولات مشغولة حالياً</span>
+                        <span class="kpi-val negative" id="kpi-occupied-tables">0</span>
+                    </div>
+                    <div class="kpi-icon-box red"><i class="fas fa-users"></i></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-info-col">
+                        <span class="kpi-label">إجمالي مبالغ الطاولات</span>
+                        <span class="kpi-val warning" id="kpi-tables-revenue">0.00 ر.س</span>
+                    </div>
+                    <div class="kpi-icon-box amber"><i class="fas fa-receipt"></i></div>
+                </div>
+            </div>
+
+            <!-- شبكة الطاولات المرئية -->
+            <div class="tables-grid" id="tables-grid-container">
+                <!-- يتم توليد كروت الطاولات ديناميكياً -->
+            </div>
+        </div>
+    </main>
+
+    <!-- =====================================================================
+         3️⃣ صفحة الموارد البشرية وشؤون الموظفين (HR & Payroll View)
+         ===================================================================== -->
+    <main class="view-page" id="view-hr">
+        <div class="page-inner-scroll">
+            <div class="page-header-row">
+                <div class="page-title">
+                    <h2><i class="fas fa-users-cog" style="color: var(--primary);"></i> شؤون الموظفين ومسير الرواتب (HR)</h2>
+                    <p>إدارة بيانات العمال، الوظائف، صرف الرواتب والسلف والخصومات مع طباعة السندات</p>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button class="btn-primary-action" onclick="openModal('add-employee-modal')">
+                        <i class="fas fa-user-plus"></i>
+                        <span>إضافة موظف جديد</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- إحصائيات HR -->
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-info-col">
+                        <span class="kpi-label">إجمالي طاقم العمل</span>
+                        <span class="kpi-val primary" id="kpi-total-employees">0</span>
+                    </div>
+                    <div class="kpi-icon-box blue"><i class="fas fa-id-card"></i></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-info-col">
+                        <span class="kpi-label">إجمالي الرواتب الشهرية</span>
+                        <span class="kpi-val" id="kpi-total-salaries">0.00 ر.س</span>
+                    </div>
+                    <div class="kpi-icon-box green"><i class="fas fa-money-bill-wave"></i></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-info-col">
+                        <span class="kpi-label">رواتب وسلف مصروفة هذا الشهر</span>
+                        <span class="kpi-val negative" id="kpi-month-paid-salaries">0.00 ر.س</span>
+                    </div>
+                    <div class="kpi-icon-box red"><i class="fas fa-hand-holding-usd"></i></div>
+                </div>
+            </div>
+
+            <!-- جدول دليل الموظفين -->
+            <div class="table-container-card">
+                <div class="table-toolbar">
+                    <h3 style="font-size: 1.05rem; font-weight: 800;">قائمة العاملين بالمطعم</h3>
+                    <input type="text" id="hr-search-input" placeholder="ابحث باسم الموظف أو الوظيفة..." style="padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem; width: 250px;">
+                </div>
+                <div class="table-scroll-wrap">
+                    <table class="custom-data-table">
+                        <thead>
+                            <tr>
+                                <th>الموظف</th>
+                                <th>المسمى الوظيفي</th>
+                                <th>رقم الهاتف</th>
+                                <th>الراتب الأساسي</th>
+                                <th>نوع الراتب</th>
+                                <th>تاريخ البدء</th>
+                                <th>الإجراءات المالية</th>
+                            </tr>
+                        </thead>
+                        <tbody id="employees-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- جدول سجل مسير الرواتب والسلف المصروفة -->
+            <div class="table-container-card">
+                <div class="table-toolbar">
+                    <h3 style="font-size: 1.05rem; font-weight: 800;">سجل العمليات المالية وسندات الصرف</h3>
+                </div>
+                <div class="table-scroll-wrap">
+                    <table class="custom-data-table">
+                        <thead>
+                            <tr>
+                                <th>رقم السند</th>
+                                <th>التاريخ</th>
+                                <th>اسم الموظف</th>
+                                <th>نوع الحركة</th>
+                                <th>المبلغ المصروف</th>
+                                <th>طريقة الدفع</th>
+                                <th>البيان والملاحظات</th>
+                                <th>طباعة</th>
+                            </tr>
+                        </thead>
+                        <tbody id="payroll-history-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- =====================================================================
+         4️⃣ صفحة إدارة المصاريف (Expenses View)
+         ===================================================================== -->
+    <main class="view-page" id="view-expenses">
+        <div class="page-inner-scroll">
+            <div class="page-header-row">
+                <div class="page-title">
+                    <h2><i class="fas fa-wallet" style="color: var(--primary);"></i> إدارة المصاريف والمشتريات التشغيلية</h2>
+                    <p>تسجيل مشتريات اللحوم، الخضار، الخامات، الفواتير، والإيجارات لحساب الأرباح بدقة</p>
+                </div>
+                <div>
+                    <button class="btn-primary-action" onclick="openModal('add-expense-modal')">
+                        <i class="fas fa-plus-circle"></i>
+                        <span>تسجيل مصروف جديد</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- إحصائيات المصاريف -->
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-info-col">
+                        <span class="kpi-label">مصاريف اليوم</span>
+                        <span class="kpi-val negative" id="kpi-today-expenses">0.00 ر.س</span>
+                    </div>
+                    <div class="kpi-icon-box red"><i class="fas fa-calendar-day"></i></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-info-col">
+                        <span class="kpi-label">مصاريف هذا الشهر</span>
+                        <span class="kpi-val negative" id="kpi-month-expenses">0.00 ر.س</span>
+                    </div>
+                    <div class="kpi-icon-box amber"><i class="fas fa-calendar-alt"></i></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-info-col">
+                        <span class="kpi-label">مسحوبات نقدية من الدرج</span>
+                        <span class="kpi-val warning" id="kpi-cash-expenses">0.00 ر.س</span>
+                    </div>
+                    <div class="kpi-icon-box blue"><i class="fas fa-money-bill-wave"></i></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-info-col">
+                        <span class="kpi-label">مدفوعات بنكية وشبكة</span>
+                        <span class="kpi-val" id="kpi-bank-expenses">0.00 ر.س</span>
+                    </div>
+                    <div class="kpi-icon-box green"><i class="fas fa-credit-card"></i></div>
+                </div>
+            </div>
+
+            <!-- جدول المصاريف -->
+            <div class="table-container-card">
+                <div class="table-toolbar">
+                    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                        <h3 style="font-size: 1.05rem; font-weight: 800; margin-left: 8px;">سجل المصروفات</h3>
+                        <select id="expense-filter-cat" onchange="renderExpenses()" style="padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem;">
+                            <option value="all">جميع التصنيفات</option>
+                            <option value="لحوم ودواجن">لحوم ودواجن</option>
+                            <option value="خضار وفواكه">خضار وفواكه</option>
+                            <option value="خامات ومواد غذائية">خامات ومواد غذائية</option>
+                            <option value="فواتير (كهرباء/ماء/غاز)">فواتير (كهرباء/ماء/غاز)</option>
+                            <option value="إيجار">إيجار</option>
+                            <option value="صيانة ومعدات">صيانة ومعدات</option>
+                            <option value="نثريات وضيافة">نثريات وضيافة</option>
+                            <option value="أخرى">أخرى</option>
+                        </select>
+                    </div>
+                    <input type="text" id="expense-search-input" placeholder="بحث بالبيان أو المستلم..." style="padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 0.85rem; width: 220px;">
+                </div>
+                <div class="table-scroll-wrap">
+                    <table class="custom-data-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>التاريخ والوقت</th>
+                                <th>التصنيف</th>
+                                <th>المبلغ</th>
+                                <th>طريقة الدفع</th>
+                                <th>البيان والملاحظات</th>
+                                <th>المستلم</th>
+                                <th>إجراءات</th>
+                            </tr>
+                        </thead>
+                        <tbody id="expenses-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- =====================================================================
+         5️⃣ صفحة التقارير وصافي الأرباح (Reports & Z-Report View)
+         ===================================================================== -->
+    <main class="view-page" id="view-reports">
+        <div class="page-inner-scroll">
+            <div class="page-header-row">
+                <div class="page-title">
+                    <h2><i class="fas fa-chart-line" style="color: var(--primary);"></i> التقارير المالية وصافي الأرباح</h2>
+                    <p>متابعة الإيرادات والمصروفات وصافي الأرباح الحقيقي مع طباعة تقرير إغلاق الوردية Z-Report</p>
+                </div>
+                <div>
+                    <button class="btn-z-report" onclick="printZReport()">
+                        <i class="fas fa-print"></i>
+                        <span>طباعة تقرير نهاية الوردية (Z-Report)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- لوحة الملخص المالي والأرباح -->
+            <div class="reports-dashboard-grid">
+                <div class="profit-meter-card">
+                    <div class="net-label">صافي الربح الفعلي اليوم (المبيعات - المصاريف والرواتب)</div>
+                    <div class="net-value" id="reports-net-profit">0.00 ر.س</div>
+                    <div style="display: flex; gap: 20px; font-size: 0.9rem; color: #cbd5e1; margin-top: 6px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                        <div>إجمالي المبيعات اليوم: <strong style="color: #fff;" id="reports-day-sales">0.00 ر.س</strong></div>
+                        <div>إجمالي المصروفات اليوم: <strong style="color: #fff;" id="reports-day-costs">0.00 ر.س</strong></div>
+                    </div>
+                </div>
+
+                <div class="report-summary-box">
+                    <h4 style="font-weight: 800; font-size: 1rem;"><i class="fas fa-cash-register"></i> نقدية الدرج الحالية للتسليم</h4>
+                    <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.9rem;">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-muted);">مبيعات نقدي (كاش):</span>
+                            <strong id="reports-cash-sales">0.00 ر.س</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span style="color: var(--text-muted);">مبيعات شبكة (بنك):</span>
+                            <strong id="reports-card-sales">0.00 ر.س</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; color: var(--danger);">
+                            <span>مصاريف نقدية خرجت من الدرج:</span>
+                            <strong id="reports-cash-deducted">-0.00 ر.س</strong>
+                        </div>
+                        <div style="border-top: 1px dashed var(--border-color); padding-top: 8px; display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: 800;">
+                            <span>الصافي بالدرج للتسليم:</span>
+                            <span style="color: var(--primary);" id="reports-drawer-expected">0.00 ر.س</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- جدول أكثر الأصناف مبيعاً وسجل فواتير اليوم -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="table-container-card">
+                    <div class="table-toolbar">
+                        <h3 style="font-size: 1rem; font-weight: 800;"><i class="fas fa-fire" style="color: #f59e0b;"></i> الأصناف الأكثر مبيعاً اليوم</h3>
+                    </div>
+                    <div class="table-scroll-wrap">
+                        <table class="custom-data-table">
+                            <thead>
+                                <tr>
+                                    <th>الصنف</th>
+                                    <th>الكمية المباعة</th>
+                                    <th>إجمالي القيمة</th>
+                                </tr>
+                            </thead>
+                            <tbody id="top-items-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="table-container-card">
+                    <div class="table-toolbar">
+                        <h3 style="font-size: 1rem; font-weight: 800;"><i class="fas fa-history"></i> آخر فواتير اليوم</h3>
+                    </div>
+                    <div class="table-scroll-wrap">
+                        <table class="custom-data-table">
+                            <thead>
+                                <tr>
+                                    <th>رقم الفاتورة</th>
+                                    <th>الوقت</th>
+                                    <th>النوع</th>
+                                    <th>المبلغ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="today-orders-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- =========================================================================
+     شريط التنبيه الفوري للطلبات الجديدة من المنيو
+     ========================================================================= -->
+<div class="live-orders-banner" id="live-orders-banner"></div>
+
+<!-- =========================================================================
+     قالب الفاتورة الحرارية للطباعة (يظهر فقط أثناء الطباعة)
+     ========================================================================= -->
+<div id="receipt-print-area"></div>
+
+<!-- =========================================================================
+     النوافذ المنبثقة (Modals)
+     ========================================================================= -->
+
+<!-- نافذة إضافة طاولة جديدة -->
+<div class="modal-overlay" id="add-table-modal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3><i class="fas fa-plus-circle"></i> إضافة طاولة جديدة</h3>
+            <button class="modal-close-btn" onclick="closeModal('add-table-modal')">&times;</button>
+        </div>
+        <form id="add-table-form">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>اسم أو رقم الطاولة:</label>
+                    <input type="text" id="input-new-table-name" required placeholder="مثال: طاولة 5 أو VIP 2">
+                </div>
+                <div class="form-group">
+                    <label>عدد الكراسي / المقاعد:</label>
+                    <input type="number" id="input-new-table-seats" value="4" min="1" max="50">
+                </div>
+                <div class="form-group">
+                    <label>موقع الطاولة / الملاحظات:</label>
+                    <input type="text" id="input-new-table-notes" placeholder="مثال: الصالة الرئيسية، التراس الخارجي">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-icon-text" onclick="closeModal('add-table-modal')">إلغاء</button>
+                <button type="submit" class="btn-primary-action">حفظ الطاولة</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- نافذة إضافة موظف جديد -->
+<div class="modal-overlay" id="add-employee-modal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3><i class="fas fa-user-plus"></i> إضافة موظف جديد</h3>
+            <button class="modal-close-btn" onclick="closeModal('add-employee-modal')">&times;</button>
+        </div>
+        <form id="add-employee-form">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>اسم الموظف بالكامل:</label>
+                    <input type="text" id="input-emp-name" required placeholder="مثال: محمد أحمد">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="form-group">
+                        <label>المسمى الوظيفي:</label>
+                        <select id="input-emp-role" required>
+                            <option value="شيف رئيسي">شيف رئيسي</option>
+                            <option value="مساعد شيف">مساعد شيف</option>
+                            <option value="ويتر (مقدم طعام)">ويتر (مقدم طعام)</option>
+                            <option value="كاشير">كاشير</option>
+                            <option value="عامل توصيل (ديليفري)">عامل توصيل (ديليفري)</option>
+                            <option value="عامل نظافة وجلي">عامل نظافة وجلي</option>
+                            <option value="مدير صالة">مدير صالة</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>رقم الهاتف:</label>
+                        <input type="tel" id="input-emp-phone" placeholder="05xxxxxxxx">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="form-group">
+                        <label>الراتب الأساسي:</label>
+                        <input type="number" id="input-emp-salary" step="0.01" required placeholder="مثال: 3000">
+                    </div>
+                    <div class="form-group">
+                        <label>دورة الراتب:</label>
+                        <select id="input-emp-type">
+                            <option value="شهري">شهري</option>
+                            <option value="أسبوعي">أسبوعي</option>
+                            <option value="يومي">يومي</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-icon-text" onclick="closeModal('add-employee-modal')">إلغاء</button>
+                <button type="submit" class="btn-primary-action">حفظ الموظف</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- نافذة صرف راتب لموظف -->
+<div class="modal-overlay" id="pay-salary-modal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3><i class="fas fa-hand-holding-usd"></i> صرف راتب موظف</h3>
+            <button class="modal-close-btn" onclick="closeModal('pay-salary-modal')">&times;</button>
+        </div>
+        <form id="pay-salary-form">
+            <input type="hidden" id="pay-emp-id">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>الموظف:</label>
+                    <input type="text" id="pay-emp-name" readonly style="background: #f1f5f9; font-weight: bold;">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="form-group">
+                        <label>المبلغ المصروف:</label>
+                        <input type="number" id="pay-amount" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>عن شهر / فترة:</label>
+                        <input type="text" id="pay-period" placeholder="مثال: سبتمبر 2026">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>طريقة الصرف:</label>
+                    <select id="pay-method">
+                        <option value="كاش (من درج الكاشير)">كاش (من درج الكاشير)</option>
+                        <option value="تحويل بنكي / شبكة">تحويل بنكي / شبكة</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>البيان / الملاحظات:</label>
+                    <input type="text" id="pay-notes" placeholder="مثال: تسليم راتب شهر سبتمبر كاملاً">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-icon-text" onclick="closeModal('pay-salary-modal')">إلغاء</button>
+                <button type="submit" class="btn-primary-action">صرف وطباعة السند</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- نافذة تسجيل سلفة لموظف -->
+<div class="modal-overlay" id="add-advance-modal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3><i class="fas fa-receipt"></i> تسجيل سلفة على موظف</h3>
+            <button class="modal-close-btn" onclick="closeModal('add-advance-modal')">&times;</button>
+        </div>
+        <form id="add-advance-form">
+            <input type="hidden" id="adv-emp-id">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>الموظف:</label>
+                    <input type="text" id="adv-emp-name" readonly style="background: #f1f5f9; font-weight: bold;">
+                </div>
+                <div class="form-group">
+                    <label>مبلغ السلفة:</label>
+                    <input type="number" id="adv-amount" step="0.01" required placeholder="مثال: 500">
+                </div>
+                <div class="form-group">
+                    <label>طريقة الصرف:</label>
+                    <select id="adv-method">
+                        <option value="كاش (من درج الكاشير)">كاش (من درج الكاشير)</option>
+                        <option value="تحويل بنكي">تحويل بنكي</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>السبب والملاحظات:</label>
+                    <input type="text" id="adv-notes" placeholder="مثال: سلفة طارئة تخصم من راتب نهاية الشهر">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-icon-text" onclick="closeModal('add-advance-modal')">إلغاء</button>
+                <button type="submit" class="btn-primary-action">تسجيل وطباعة السند</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- نافذة تسجيل مصروف جديد -->
+<div class="modal-overlay" id="add-expense-modal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3><i class="fas fa-plus-circle"></i> تسجيل مصروف تشغيلي جديد</h3>
+            <button class="modal-close-btn" onclick="closeModal('add-expense-modal')">&times;</button>
+        </div>
+        <form id="add-expense-form">
+            <div class="modal-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="form-group">
+                        <label>تصنيف المصروف:</label>
+                        <select id="exp-category" required>
+                            <option value="لحوم ودواجن">🥩 مشتريات لحوم ودواجن</option>
+                            <option value="خضار وفواكه">🥦 مشتريات خضار وفواكه</option>
+                            <option value="خامات ومواد غذائية">🥫 خامات ومواد غذائية</option>
+                            <option value="فواتير (كهرباء/ماء/غاز)">⚡ فواتير (كهرباء/ماء/غاز)</option>
+                            <option value="إيجار">🏢 إيجار المحل</option>
+                            <option value="صيانة ومعدات">🔧 صيانة وأدوات ومعدات</option>
+                            <option value="نثريات وضيافة">☕ نثريات وضيافة وتغليف</option>
+                            <option value="أخرى">📝 مصروفات أخرى</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>المبلغ المدفوع:</label>
+                        <input type="number" id="exp-amount" step="0.01" required placeholder="0.00">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="form-group">
+                        <label>طريقة الدفع:</label>
+                        <select id="exp-method">
+                            <option value="كاش (من درج الكاشير)">كاش (من درج الكاشير)</option>
+                            <option value="شبكة / تحويل بنكي">شبكة / تحويل بنكي</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>اسم المورد / المستلم:</label>
+                        <input type="text" id="exp-payee" placeholder="مثال: ملحمة الأمانة">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>البيان والتفاصيل:</label>
+                    <input type="text" id="exp-notes" placeholder="مثال: شراء 10 كيلو لحم عجل للشاورما">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-icon-text" onclick="closeModal('add-expense-modal')">إلغاء</button>
+                <button type="submit" class="btn-primary-action">تسجيل وطباعة الإيصال</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- نافذة اختيار الإضافات والأحجام (Variations Modal) -->
+<div class="modal-overlay" id="variations-modal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3 id="modal-item-name">تحديد الخيارات</h3>
+            <button class="modal-close-btn" onclick="closeModal('variations-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div id="variations-list"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-icon-text" onclick="closeModal('variations-modal')">إلغاء</button>
+            <button class="btn-checkout" style="flex: initial; padding: 8px 24px;" onclick="confirmVariationSelection()">
+                إضافة للسلة
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- نافذة إعدادات النظام والربط بـ API المنيو -->
+<div class="modal-overlay" id="settings-modal">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>⚙️ إعدادات الكاشير وربط السيرفر</h3>
+            <button class="modal-close-btn" onclick="closeModal('settings-modal')">&times;</button>
+        </div>
+        <form id="settings-form">
+            <div class="modal-body">
+                <div style="background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 10px;">
+                    <div style="font-size: 0.82rem; font-weight: 700; color: #3730a3; margin-bottom: 6px;">
+                        <i class="fas fa-magic"></i> تجربة فورية مع مطعم مسجل لديك:
+                    </div>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button type="button" class="btn-icon-text" style="font-size: 0.8rem; padding: 5px 12px; background: #fff;" onclick="applyDemoPreset('al-madina')">مطعم المدينة</button>
+                        <button type="button" class="btn-icon-text" style="font-size: 0.8rem; padding: 5px 12px; background: #fff;" onclick="applyDemoPreset('chixee')">مطعم Chixee</button>
+                        <button type="button" class="btn-icon-text" style="font-size: 0.8rem; padding: 5px 12px; background: #fff;" onclick="applyDemoPreset('tajin')">مطعم طاجن</button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>رابط خادم الـ API (api.php):</label>
+                    <input type="url" id="input-api-url" class="ltr-input" required placeholder="https://example.com/api.php">
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="form-group">
+                        <label>اسم مستخدم المطعم (user):</label>
+                        <input type="text" id="input-username" class="ltr-input" required placeholder="اسم المستخدم">
+                    </div>
+                    <div class="form-group">
+                        <label>مفتاح الربط السري (token):</label>
+                        <input type="text" id="input-token" class="ltr-input" required placeholder="رمز الـ API Token">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="form-group">
+                        <label>اسم المطعم (في الفاتورة):</label>
+                        <input type="text" id="input-store-name" placeholder="مطعم وكافيه النخيل">
+                    </div>
+                    <div class="form-group">
+                        <label>رقم هاتف المطعم:</label>
+                        <input type="text" id="input-store-phone" placeholder="0501234567">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="form-group">
+                        <label>عرض ورق الفاتورة:</label>
+                        <select id="select-printer-width">
+                            <option value="80mm">80 ملم (طابعات الفواتير الكبيرة القياسية)</option>
+                            <option value="58mm">58 ملم (طابعات الفواتير الصغيرة والمحمولة)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>العملة والضريبة (%):</label>
+                        <div style="display: flex; gap: 6px;">
+                            <input type="text" id="input-currency" value="ر.س" style="width: 70px;">
+                            <input type="number" id="input-tax" value="15" style="flex: 1;">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>جملة تذييل الفاتورة:</label>
+                    <input type="text" id="input-receipt-footer" placeholder="شكراً لزيارتكم ونتمنى لكم وجبة شهية!">
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px; background: #f1f5f9; padding: 12px; border-radius: 8px;">
+                    <label class="checkbox-group" style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.85rem;">
+                        <input type="checkbox" id="check-auto-print" checked>
+                        <span>🖨️ طباعة الطلبات تلقائياً فور وصولها من المنيو السحابي</span>
+                    </label>
+                    <label class="checkbox-group" style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.85rem;">
+                        <input type="checkbox" id="check-sound-alert" checked>
+                        <span>🔔 تشغيل نغمة رنين عند وصول طلب جديد من زبون</span>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-icon-text" onclick="closeModal('settings-modal')">إلغاء</button>
+                <button type="submit" class="btn-checkout" style="flex: initial; padding: 10px 24px;">حفظ وبدء المزامنة</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- نافذة سجل طلبات المنيو المعلقة -->
+<div class="modal-overlay" id="incoming-orders-modal">
+    <div class="modal-card" style="max-width: 650px;">
+        <div class="modal-header">
+            <h3>📋 طلبات المنيو الواردة</h3>
+            <button class="modal-close-btn" onclick="closeModal('incoming-orders-modal')">&times;</button>
+        </div>
+        <div class="modal-body" id="incoming-orders-list-body">
+            <p style="text-align: center; color: #94a3b8;">جاري تحميل قائمة الطلبات...</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-icon-text" onclick="closeModal('incoming-orders-modal')">إغلاق</button>
+        </div>
+    </div>
+</div>
+
+<!-- ملف الجافاسكريبت الرئيسي المطور -->
+<script src="js/app.js"></script>
+
+<!-- تسجيل الـ Service Worker لتشغيل PWA -->
+<script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js').catch(err => {
+            console.log('SW registration note:', err);
+        });
+    }
+</script>
+
+</body>
+</html>
