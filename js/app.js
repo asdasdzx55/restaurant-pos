@@ -25,13 +25,17 @@ const DEMO_PRESETS = {
     }
 };
 
+const defaultApiUrl = (typeof window !== 'undefined' && window.location.protocol.startsWith('http') && !window.location.origin.includes('github.io') && !window.location.origin.includes('127.0.0.1'))
+    ? window.location.origin + '/api.php'
+    : 'https://codeart.almagd555.com/api.php';
+
 // =============================================================================
 // الحالة العامة للنظام (Application State)
 // =============================================================================
 const state = {
     currentView: 'pos',
     settings: {
-        apiUrl: 'http://127.0.0.1:8080/api.php',
+        apiUrl: defaultApiUrl,
         user: 'al-madina',
         token: '8d7b85eba56b8091c674de6b262c4ffe',
         storeName: 'مطعم المدينة',
