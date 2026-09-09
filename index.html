@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>نظام إدارة المطاعم السحابي المتكامل | Cloud POS & ERP</title>
     
-    <!-- خط Cairo وأيقونات Font Awesome -->
+    <!-- خطوط Cairo و Tajawal وأيقونات Font Awesome -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
     <!-- PWA Manifest -->
@@ -137,6 +137,9 @@
                 <input type="text" id="table-num-input" value="طاولة 1" placeholder="مثال: طاولة 1 أو VIP">
                 <button type="button" class="btn-icon-text" style="padding: 4px 8px; font-size: 0.75rem;" onclick="switchView('tables')" title="اختر من خريطة الطاولات">
                     <i class="fas fa-th-large"></i> خريطة
+                </button>
+                <button type="button" id="btn-clear-active-table" class="btn-icon-text danger" style="padding: 4px 8px; font-size: 0.75rem; color: #ef4444; border-color: #fca5a5; display: none;" onclick="clearActiveTableWithoutCheckout()" title="تفريغ الطاولة بدون محاسبة">
+                    <i class="fas fa-undo"></i> تفريغ
                 </button>
             </div>
 
@@ -821,6 +824,11 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label>عنوان المطعم (يظهر في رأس الفاتورة):</label>
+                    <input type="text" id="input-store-address" placeholder="مثال: حلب-الصاخور-سوق الخضار">
+                </div>
+
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                     <div class="form-group">
                         <label>عرض ورق الفاتورة:</label>
@@ -859,6 +867,40 @@
                 <button type="submit" class="btn-checkout" style="flex: initial; padding: 10px 24px;">حفظ وبدء المزامنة</button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- نافذة ملاحظة الشيف للصنف -->
+<div class="modal-overlay" id="item-note-modal">
+    <div class="modal-card" style="max-width: 450px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-comment-dots" style="color: var(--primary);"></i> ملاحظة خاصة للشيف</h3>
+            <button class="modal-close-btn" onclick="closeModal('item-note-modal')">&times;</button>
+        </div>
+        <div class="modal-body">
+            <p id="note-modal-item-name" style="font-weight: 700; margin-bottom: 12px; color: var(--primary); font-size: 1rem;"></p>
+            <div class="form-group">
+                <label style="font-weight: bold; margin-bottom: 6px; display: block;">اكتب الملاحظة (ستظهر للشيف وتُطبع في الفاتورة):</label>
+                <input type="text" id="note-modal-input" class="form-control" placeholder="مثال: بدون بصل، سبايسي زيادة، صوص خارجي..." autocomplete="off" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); font-family: inherit;">
+            </div>
+            <div style="margin-top: 12px;">
+                <label style="font-size: 0.8rem; color: #64748b; margin-bottom: 6px; display: block;">خيارات سريعة بنقرة واحدة:</label>
+                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                    <button type="button" class="btn-icon-text" style="font-size: 0.75rem; padding: 5px 10px;" onclick="appendQuickNote('بدون بصل')">بدون بصل</button>
+                    <button type="button" class="btn-icon-text" style="font-size: 0.75rem; padding: 5px 10px;" onclick="appendQuickNote('سبايسي 🌶️')">سبايسي 🌶️</button>
+                    <button type="button" class="btn-icon-text" style="font-size: 0.75rem; padding: 5px 10px;" onclick="appendQuickNote('بدون شطة')">بدون شطة</button>
+                    <button type="button" class="btn-icon-text" style="font-size: 0.75rem; padding: 5px 10px;" onclick="appendQuickNote('صوص خارجي')">صوص خارجي</button>
+                    <button type="button" class="btn-icon-text" style="font-size: 0.75rem; padding: 5px 10px;" onclick="appendQuickNote('مستوي زيادة')">مستوي زيادة</button>
+                    <button type="button" class="btn-icon-text" style="font-size: 0.75rem; padding: 5px 10px;" onclick="appendQuickNote('بدون مخلل')">بدون مخلل</button>
+                    <button type="button" class="btn-icon-text" style="font-size: 0.75rem; padding: 5px 10px;" onclick="appendQuickNote('بدون ثوم')">بدون ثوم</button>
+                    <button type="button" class="btn-icon-text" style="font-size: 0.75rem; padding: 5px 10px; color: #ef4444;" onclick="clearNoteInput()">مسح</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-icon-text" onclick="closeModal('item-note-modal')">إلغاء</button>
+            <button type="button" class="btn-checkout" style="flex: initial; padding: 10px 22px;" onclick="saveCartItemNote()"><i class="fas fa-check"></i> حفظ الملاحظة</button>
+        </div>
     </div>
 </div>
 

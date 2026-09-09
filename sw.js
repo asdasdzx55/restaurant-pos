@@ -1,4 +1,4 @@
-const CACHE_NAME = 'codeart-pos-v2';
+const CACHE_NAME = 'codeart-pos-v3';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -7,7 +7,7 @@ const STATIC_ASSETS = [
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  'https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap',
+  'https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=Tajawal:wght@400;700&display=swap',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css'
 ];
 

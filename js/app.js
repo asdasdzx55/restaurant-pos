@@ -40,6 +40,7 @@ const state = {
         token: '8d7b85eba56b8091c674de6b262c4ffe',
         storeName: 'مطعم المدينة',
         phone: '0501234567',
+        storeAddress: 'حلب-الصاخور-سوق الخضرامن الطرف القبلي اول شارع المكاتب من فوق',
         currency: 'ر.س',
         taxPercent: 15,
         printerWidth: '80mm',
@@ -96,6 +97,16 @@ document.addEventListener('DOMContentLoaded', () => {
     renderExpenses();
     renderReports();
 });
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
 
 // =============================================================================
 // نظام التبديل بين الشاشات (Navigation View Switcher)
@@ -232,6 +243,9 @@ function applySettingsToDOM() {
     document.getElementById('input-token').value = state.settings.token || '';
     document.getElementById('input-store-name').value = state.settings.storeName || '';
     document.getElementById('input-store-phone').value = state.settings.phone || '';
+    if (document.getElementById('input-store-address')) {
+        document.getElementById('input-store-address').value = state.settings.storeAddress || '';
+    }
     document.getElementById('input-currency').value = state.settings.currency || 'ر.س';
     document.getElementById('input-tax').value = state.settings.taxPercent;
     document.getElementById('select-printer-width').value = state.settings.printerWidth || '80mm';
@@ -465,7 +479,8 @@ function addToCart(item, variationName, customPrice) {
             name: item.name,
             variation: variationName || null,
             price: effectivePrice,
-            quantity: 1
+            quantity: 1,
+            note: ''
         });
     }
     renderCart();
@@ -501,13 +516,74 @@ function removeCartItem(cartItemId) {
 function clearCart() {
     state.cart = [];
     state.activeTableId = null;
+    const clearTableBtn = document.getElementById('btn-clear-active-table');
+    if (clearTableBtn) clearTableBtn.style.display = 'none';
     renderCart();
+}
+
+let activeNoteCartItemId = null;
+
+function openItemNoteModal(cartItemId) {
+    activeNoteCartItemId = cartItemId;
+    const item = state.cart.find(c => c.cartItemId === cartItemId);
+    if (!item) return;
+
+    const titleElem = document.getElementById('note-modal-item-name');
+    if (titleElem) titleElem.textContent = item.name + (item.variation ? ` (${item.variation})` : '');
+    
+    const inputElem = document.getElementById('note-modal-input');
+    if (inputElem) inputElem.value = item.note || '';
+
+    openModal('item-note-modal');
+    setTimeout(() => {
+        if (inputElem) inputElem.focus();
+    }, 150);
+}
+
+function appendQuickNote(txt) {
+    const inp = document.getElementById('note-modal-input');
+    if (!inp) return;
+    if (!inp.value.trim()) {
+        inp.value = txt;
+    } else {
+        inp.value = inp.value.trim() + ' + ' + txt;
+    }
+}
+
+function clearNoteInput() {
+    const inp = document.getElementById('note-modal-input');
+    if (inp) inp.value = '';
+}
+
+function saveCartItemNote() {
+    if (!activeNoteCartItemId) return;
+    const item = state.cart.find(c => c.cartItemId === activeNoteCartItemId);
+    const inp = document.getElementById('note-modal-input');
+    if (item && inp) {
+        item.note = inp.value.trim();
+        if (state.activeTableId) {
+            const table = state.tables.find(t => t.id === state.activeTableId);
+            if (table) {
+                table.orderItems = [...state.cart];
+                saveTables();
+            }
+        }
+        renderCart();
+        showToast('تم حفظ ملاحظة الشيف للصنف بنجاح', 'success');
+    }
+    closeModal('item-note-modal');
+    activeNoteCartItemId = null;
 }
 
 function renderCart() {
     const container = document.getElementById('cart-items-list');
     const emptyState = document.getElementById('empty-cart-state');
     const btnCheckout = document.getElementById('btn-checkout');
+    const clearTableBtn = document.getElementById('btn-clear-active-table');
+
+    if (clearTableBtn) {
+        clearTableBtn.style.display = state.activeTableId ? 'inline-flex' : 'none';
+    }
 
     if (state.cart.length === 0) {
         container.innerHTML = '';
@@ -529,11 +605,21 @@ function renderCart() {
         row.className = 'cart-item-row';
         row.innerHTML = `
             <div class="cart-item-header">
-                <div>
-                    <div class="cart-item-title">${item.name}</div>
-                    ${item.variation ? `<div class="cart-item-option-label">🔹 ${item.variation}</div>` : ''}
+                <div style="flex: 1; padding-left: 6px;">
+                    <div class="cart-item-title">${escapeHtml(item.name)}</div>
+                    ${item.variation ? `<div class="cart-item-option-label">🔹 ${escapeHtml(item.variation)}</div>` : ''}
+                    ${item.note ? `
+                        <div class="cart-item-note-badge" onclick="openItemNoteModal('${item.cartItemId}')" title="اضغط لتعديل ملاحظة الشيف">
+                            <i class="fas fa-comment-dots"></i> <span>ملاحظة للشيف: ${escapeHtml(item.note)}</span>
+                        </div>
+                    ` : ''}
                 </div>
-                <button class="btn-remove-item" onclick="removeCartItem('${item.cartItemId}')"><i class="fas fa-trash-alt"></i></button>
+                <div style="display: flex; gap: 4px; align-items: flex-start;">
+                    <button class="btn-note-item ${item.note ? 'has-note' : ''}" onclick="openItemNoteModal('${item.cartItemId}')" title="${item.note ? 'تعديل ملاحظة الشيف' : 'إضافة ملاحظة للشيف'}">
+                        <i class="fas ${item.note ? 'fa-pen' : 'fa-comment-medical'}"></i>
+                    </button>
+                    <button class="btn-remove-item" onclick="removeCartItem('${item.cartItemId}')" title="حذف الصنف"><i class="fas fa-trash-alt"></i></button>
+                </div>
             </div>
             <div class="cart-item-controls">
                 <div class="stepper">
@@ -569,7 +655,8 @@ async function submitOrder() {
         id: c.itemId,
         name: c.name + (c.variation ? ` (${c.variation})` : ''),
         price: c.price,
-        quantity: c.quantity
+        quantity: c.quantity,
+        note: c.note || ''
     }));
 
     const tableLabel = document.getElementById('table-num-input').value.trim() || 'طاولة 1';
@@ -662,28 +749,42 @@ function renderTables() {
         const statusClass = table.status === 'vacant' ? 'vacant' : (table.status === 'occupied' ? 'occupied' : 'billed');
         const statusText = table.status === 'vacant' ? 'فارغة (متاحة)' : (table.status === 'occupied' ? 'مشغولة' : 'فاتورة مطلوبة');
 
+        let itemsSummaryHtml = '<div style="color: #94a3b8;">لا توجد طلبات جارية</div>';
+        if (table.orderItems && table.orderItems.length > 0) {
+            const summaryText = table.orderItems.map(it => `${escapeHtml(it.name)} (${it.quantity})${it.note ? ' [' + escapeHtml(it.note) + ']' : ''}`).join('، ');
+            itemsSummaryHtml = `
+                <div><i class="fas fa-utensils"></i> الأصناف: ${table.orderItems.length} صنف</div>
+                <div style="font-size: 0.75rem; color: #64748b; margin-top: 3px; max-height: 40px; overflow: hidden; text-overflow: ellipsis; white-space: normal;" title="${escapeHtml(summaryText)}">
+                    ${summaryText}
+                </div>
+            `;
+        }
+
         card.className = `table-card ${statusClass}`;
         card.innerHTML = `
             <div class="table-card-top">
                 <div class="table-number-title">
                     <i class="fas fa-chair"></i>
-                    <span>${table.name}</span>
+                    <span>${escapeHtml(table.name)}</span>
                 </div>
                 <span class="table-status-pill ${statusClass}">${statusText}</span>
             </div>
             <div class="table-card-body">
                 <div><i class="fas fa-user-friends"></i> السعة: ${table.seats || 4} كراسي</div>
                 ${table.openedAt ? `<div><i class="fas fa-clock"></i> جلوس منذ: ${table.openedAt}</div>` : ''}
-                ${table.orderItems && table.orderItems.length > 0 ? `<div><i class="fas fa-utensils"></i> الأصناف: ${table.orderItems.length} صنف</div>` : '<div style="color: #94a3b8;">لا توجد طلبات جارية</div>'}
+                ${itemsSummaryHtml}
                 <div class="table-order-amount">${Number(table.orderTotal || 0).toFixed(2)} ${state.settings.currency}</div>
             </div>
             <div class="table-card-actions">
-                <button class="table-btn primary" onclick="openTableInPOS(${table.id})">
-                    <i class="fas fa-cart-plus"></i> ${table.status === 'vacant' ? 'فتح طلب' : 'تعديل الطلب'}
+                <button class="table-btn primary" onclick="openTableInPOS(${table.id})" title="${table.status === 'vacant' ? 'فتح طلب جديد' : 'تعديل طلب الطاولة'}">
+                    <i class="fas fa-cart-plus"></i> ${table.status === 'vacant' ? 'طلب' : 'تعديل'}
                 </button>
                 ${table.status !== 'vacant' ? `
-                    <button class="table-btn success" onclick="checkoutTableDirectly(${table.id})" title="محاسبة وإخلاء">
-                        <i class="fas fa-check"></i> محاسبة
+                    <button class="table-btn success" onclick="checkoutTableDirectly(${table.id})" title="محاسبة وإصدار الفاتورة">
+                        <i class="fas fa-cash-register"></i> محاسبة
+                    </button>
+                    <button class="table-btn warning" onclick="clearTableWithoutCheckout(${table.id})" title="تفريغ الطاولة بدون محاسبة">
+                        <i class="fas fa-undo"></i> تفريغ
                     </button>
                 ` : `
                     <button class="table-btn danger" onclick="deleteTable(${table.id})" title="حذف الطاولة">
@@ -724,6 +825,35 @@ function checkoutTableDirectly(tableId) {
     state.cart = [...table.orderItems];
     document.getElementById('table-num-input').value = table.name;
     submitOrder();
+}
+
+function clearTableWithoutCheckout(tableId) {
+    const table = state.tables.find(t => t.id === tableId);
+    if (!table) return;
+
+    if (!confirm(`هل أنت متأكد من تفريغ وإخلاء "${table.name}" وإلغاء الطلب دون محاسبة أو تسجيل مبيعات؟`)) {
+        return;
+    }
+
+    table.status = 'vacant';
+    table.orderItems = [];
+    table.orderTotal = 0;
+    table.openedAt = null;
+
+    if (state.activeTableId === tableId) {
+        state.cart = [];
+        state.activeTableId = null;
+        renderCart();
+    }
+
+    saveTables();
+    renderTables();
+    showToast(`تم تفريغ وإخلاء ${table.name} بنجاح بدون محاسبة`, 'info');
+}
+
+function clearActiveTableWithoutCheckout() {
+    if (!state.activeTableId) return;
+    clearTableWithoutCheckout(state.activeTableId);
 }
 
 function deleteTable(tableId) {
@@ -1122,7 +1252,8 @@ function normalizeOrderItems(rawItems) {
         return rawItems.map(item => ({
             name: item.name || 'صنف',
             price: Number(item.price || 0),
-            quantity: Number(item.quantity || item.qty || 1)
+            quantity: Number(item.quantity || item.qty || 1),
+            note: item.note || item.notes || ''
         }));
     }
     if (typeof rawItems === 'object') {
@@ -1131,10 +1262,11 @@ function normalizeOrderItems(rawItems) {
                 return {
                     name: val.name || key,
                     price: Number(val.price || 0),
-                    quantity: Number(val.qty || val.quantity || 1)
+                    quantity: Number(val.qty || val.quantity || 1),
+                    note: val.note || val.notes || ''
                 };
             }
-            return { name: key, price: 0, quantity: 1 };
+            return { name: key, price: 0, quantity: 1, note: '' };
         });
     }
     return [];
@@ -1142,73 +1274,101 @@ function normalizeOrderItems(rawItems) {
 
 function triggerPrint(order) {
     const container = document.getElementById('receipt-print-area');
-    const widthClass = state.settings.printerWidth === '58mm' ? 'receipt-58mm' : '';
+    if (!container) return;
 
     let typeTitle = 'طلب صالة';
-    if (order.order_type === 'takeaway') typeTitle = 'طلب سفري';
-    if (order.order_type === 'delivery') typeTitle = 'طلب توصيل';
+    if (order.order_type === 'takeaway') typeTitle = 'تيك أواي';
+    if (order.order_type === 'delivery') typeTitle = 'توصيل';
 
-    let itemsHtml = '';
     const itemsList = normalizeOrderItems(order.items);
+    let itemsRows = '';
+    let subtotalCalc = 0;
+
     itemsList.forEach(item => {
         const qty = item.quantity || 1;
         const p = Number(item.price || 0);
-        const sub = (p * qty).toFixed(2);
-        itemsHtml += `
+        const lineTotal = p * qty;
+        subtotalCalc += lineTotal;
+
+        itemsRows += `
             <tr>
-                <td style="text-align: right;">${item.name}</td>
-                <td style="text-align: center;">${qty}</td>
-                <td style="text-align: left;">${sub}</td>
+                <td>
+                    ${escapeHtml(item.name)}
+                    ${item.note ? `<div class="note">ملاحظة: ${escapeHtml(item.note)}</div>` : ''}
+                </td>
+                <td>${qty}</td>
+                <td>${p.toFixed(1)}</td>
+                <td style="text-align: left;">${lineTotal.toFixed(1)}</td>
             </tr>
         `;
     });
 
-    const subtotal = Number(order.total_price || 0);
-    const storeTitle = state.settings.storeName || 'المطعم';
-    const storePhone = state.settings.phone ? `هاتف: ${state.settings.phone}` : '';
+    const taxRate = Number(state.settings.taxPercent || 0);
+    const taxAmount = (subtotalCalc * taxRate) / 100;
+    const grandTotal = subtotalCalc + taxAmount;
+
+    const storeTitle = state.settings.storeName || 'مطعمي';
+    const storeAddress = state.settings.storeAddress || 'حلب-الصاخور-سوق الخضرامن الطرف القبلي اول شارع المكاتب من فوق';
+    const storePhone = state.settings.phone || '01125611779';
     const footerMsg = state.settings.receiptFooter || 'شكراً لزيارتكم!';
+    const orderDate = order.created_at || new Date().toLocaleString('ar-SA');
+
+    const qrBase64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGMAAABjAQAAAACnQIM4AAABmklEQVR4nIVUPW/bMBB9FAOwS8RmNEBDAbpl6UoDBuSx/6YRumipbKFLJ7u/oL+FXUpv+QUF6CpFulVKFhZQfIW6JAGM44HL4R7efTzeAVCjdkbHEUCG55a98FCQD1XshmjWxCKzxwxye4MvewyveCSA2brGeX069mSTd/fBLYU7HXuyTB5xCfz4qaAj3xGgTOWnl+Ikiv41vF5JosBPaauQw+Sl3CWQIbddS6byyTpl6yFIblUQnkWezXrbfd3jIc7f1zznKLzRkYjGxvJ1GkHd0cojTOX4Kd3m3xbZTXiItzlYzjMa3iG/epxfmXv7m0XOf32fvfWHe3UiH15m/1gvsV82f+/mq4SaF5+7qg5iNxt2l/wPaawcCNcWOqGmyVWoCNp1lFCz29hRRAiPxiZ0J1f0oF6FXPHIoClob5qSNmVii1tv1hEoISLfEREVrR+FK/oEJ6BoR8WxNNe87llBTvxZ4ZOTLX9DYIQf/98cgJ/S5L1pY2irVPaJs9uURI4Gfo+mvF0/qV8k9j07iNXiggzUoVqwnP8ANUK2RTcrEUwAAAAASUVORK5CYII=";
 
     container.innerHTML = `
-        <div class="receipt-container ${widthClass}">
-            <div class="receipt-header">
-                <div class="receipt-store-title">${storeTitle}</div>
-                <div>${storePhone}</div>
-                <div class="receipt-badge-type">${typeTitle}</div>
+        <div class="receipt">
+            <div class="header">
+                <h2>${escapeHtml(storeTitle)}</h2>
+                ${storeAddress ? `<p>${escapeHtml(storeAddress)}</p>` : ''}
+                <p>هاتف: ${escapeHtml(storePhone)}</p>
             </div>
-
-            <div class="receipt-meta-row">
-                <span>رقم الطلب: #${order.id}</span>
-                <span>${order.created_at || new Date().toLocaleTimeString('ar-SA')}</span>
+            
+            <div class="order-info">
+                <span>طلب: #${order.id}</span>
+                <span>${typeTitle}</span>
             </div>
-            ${order.table_number ? `<div class="receipt-meta-row"><span>الطاولة:</span><strong>${order.table_number}</strong></div>` : ''}
-            ${order.customer_name ? `<div class="receipt-meta-row"><span>العميل:</span><span>${order.customer_name}</span></div>` : ''}
-            ${order.customer_phone ? `<div class="receipt-meta-row"><span>الهاتف:</span><span>${order.customer_phone}</span></div>` : ''}
-            ${order.customer_address ? `<div class="receipt-meta-row"><span>العنوان:</span><span>${order.customer_address}</span></div>` : ''}
-
-            <table class="receipt-items-table">
+            <div style="text-align: center; font-size: 11px; margin-bottom: 10px;">${orderDate}</div>
+            
+            ${(order.table_number || order.customer_name || order.customer_phone || order.customer_address) ? `
+            <div class="customer-box">
+                ${order.table_number ? `<p><strong>الطاولة:</strong> ${escapeHtml(order.table_number)}</p>` : ''}
+                ${order.customer_name ? `<p><strong>العميل:</strong> ${escapeHtml(order.customer_name)}</p>` : ''}
+                ${order.customer_phone ? `<p><strong>الهاتف:</strong> ${escapeHtml(order.customer_phone)}</p>` : ''}
+                ${order.customer_address ? `<p><strong>العنوان:</strong> ${escapeHtml(order.customer_address)}</p>` : ''}
+            </div>
+            ` : ''}
+            
+            <table class="table">
                 <thead>
                     <tr>
-                        <th style="text-align: right;">الصنف</th>
-                        <th style="text-align: center;">العدد</th>
-                        <th style="text-align: left;">المجموع</th>
+                        <th>الصنف</th>
+                        <th>كمية</th>
+                        <th>سعر</th>
+                        <th style="text-align: left;">إجمالي</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${itemsHtml}
+                    ${itemsRows}
                 </tbody>
             </table>
-
-            <div class="receipt-totals">
-                <div class="tot-row bold-total">
-                    <span>الإجمالي المستحق:</span>
-                    <span>${subtotal.toFixed(2)} ${state.settings.currency}</span>
+            
+            <div class="totals-box">
+                <div class="total-row"><span>الإجمالي الفرعي:</span><span>${subtotalCalc.toFixed(2)}</span></div>
+                ${taxAmount > 0 ? `<div class="total-row"><span>ضريبة مضافة:</span><span>${taxAmount.toFixed(2)}</span></div>` : ''}
+                
+                <div class="grand-total">
+                    <span>الصافي (${state.settings.currency}):</span>
+                    <span>${grandTotal.toFixed(2)}</span>
                 </div>
             </div>
-
-            <div class="receipt-footer">
-                <p>${footerMsg}</p>
-                <p style="font-size: 9px; margin-top: 4px; color: #555;">CodeArt Cloud POS</p>
+            
+            <div class="qr-box">
+                <p>امسح الكود لعرض المنيو</p>
+                <img src="${qrBase64}" alt="QR Code" width="100"/>
             </div>
+            
+            <div class="footer">${escapeHtml(footerMsg)}</div>
+            <div class="credits">CodeArt POS System<br>Developed by Ahmed Abdelwahab</div>
         </div>
     `;
 
@@ -1595,6 +1755,7 @@ function initEventListeners() {
         state.settings.token = document.getElementById('input-token').value.trim();
         state.settings.storeName = document.getElementById('input-store-name').value.trim();
         state.settings.phone = document.getElementById('input-store-phone').value.trim();
+        state.settings.storeAddress = document.getElementById('input-store-address')?.value.trim() || '';
         state.settings.currency = document.getElementById('input-currency').value.trim() || 'ر.س';
         state.settings.taxPercent = parseFloat(document.getElementById('input-tax').value) || 0;
         state.settings.printerWidth = document.getElementById('select-printer-width').value;
