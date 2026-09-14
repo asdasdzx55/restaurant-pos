@@ -18,7 +18,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <!-- ملف الأنماط والتنسيق -->
-    <link rel="stylesheet" href="css/style.css?v=3.7">
+    <link rel="stylesheet" href="css/style.css?v=3.8">
 </head>
 <body>
 
@@ -91,6 +91,12 @@
                 <span id="pending-orders-badge" class="badge-count" style="display: none;">0</span>
             </button>
 
+            <!-- زر إدارة وتقفيل طلبات الدليفري -->
+            <button class="btn-icon-text active-indicator" onclick="openDeliveryHubModal()" title="إدارة وتقفيل طلبات الدليفري (الطيارين)">
+                <i class="fas fa-motorcycle"></i>
+                <span id="delivery-hub-badge" class="badge-count" style="display: none; background: #059669;">0</span>
+            </button>
+
             <!-- زر قائمة همبرجر والمزيد (متاح لجميع الأجهزة) -->
             <button type="button" class="btn-icon-text" id="btn-header-more" onclick="toggleMobileMoreMenu(true)" title="قائمة الخدمات والأنظمة (المزيد ☰)">
                 <i class="fas fa-bars"></i>
@@ -159,10 +165,27 @@
                 </button>
             </div>
 
-            <div class="order-type-details" id="delivery-inputs-wrapper" style="display: none; flex-direction: column; gap: 6px;">
-                <input type="text" id="cust-name" placeholder="اسم العميل">
-                <input type="tel" id="cust-phone" placeholder="رقم الهاتف">
-                <input type="text" id="cust-address" placeholder="عنوان التوصيل">
+            <!-- كارت بيانات التوصيل العصري بالسلة -->
+            <div class="delivery-cart-card" id="delivery-card-summary" style="display: none;">
+                <div class="delivery-card-header">
+                    <div class="delivery-badge-pill"><i class="fas fa-motorcycle"></i> بيانات التوصيل والدليفري</div>
+                    <button type="button" class="btn-edit-delivery" onclick="openDeliveryDetailsModal()" title="تعديل بيانات العميل والمندوب">
+                        <i class="fas fa-edit"></i> تعديل
+                    </button>
+                </div>
+                <div class="delivery-card-body" onclick="openDeliveryDetailsModal()" title="اضغط لتعديل البيانات">
+                    <div class="delivery-cust-info">
+                        <span class="delivery-cust-name" id="display-delivery-cust-name"><i class="fas fa-user"></i> لم يتم تسجيل العميل بعد</span>
+                        <span class="delivery-cust-phone" id="display-delivery-cust-phone"><i class="fas fa-phone"></i> اضغط للتسجيل</span>
+                    </div>
+                    <div class="delivery-cust-address" id="display-delivery-cust-address">
+                        <i class="fas fa-map-marker-alt"></i> أدخل عنوان التوصيل ورقم الهاتف...
+                    </div>
+                    <div class="delivery-meta-bar" id="display-delivery-meta">
+                        <span class="driver-pill" id="display-delivery-driver"><i class="fas fa-biking"></i> المندوب: قيد التعيين</span>
+                        <span class="fee-pill" id="display-delivery-fee"><i class="fas fa-tag"></i> خدمة: 0.00 ر.س</span>
+                    </div>
+                </div>
             </div>
 
             <!-- قائمة عناصر السلة -->
@@ -206,6 +229,10 @@
                 <div class="summary-row" id="row-card-fee" style="display: none;">
                     <span id="label-card-fee">رسوم دفع بالشبكة:</span>
                     <span id="summary-card-fee" style="color: #0284c7; font-weight: 700;">+0.00 ر.س</span>
+                </div>
+                <div class="summary-row" id="row-delivery-fee" style="display: none;">
+                    <span id="label-delivery-fee"><i class="fas fa-motorcycle"></i> خدمة توصيل (دليفري):</span>
+                    <span id="summary-delivery-fee" style="color: #059669; font-weight: 700;">+0.00 ر.س</span>
                 </div>
                 <div class="summary-row">
                     <span id="label-tax-percent">ضريبة القيمة المضافة:</span>
@@ -981,6 +1008,14 @@
                 </div>
                 <i class="fas fa-chevron-left more-item-arrow"></i>
             </button>
+            <button type="button" class="more-menu-item" onclick="openDeliveryHubModal(); toggleMobileMoreMenu(false);">
+                <div class="more-item-icon green"><i class="fas fa-motorcycle"></i></div>
+                <div class="more-item-info">
+                    <div class="more-item-title">إدارة وتقفيل الدليفري</div>
+                    <div class="more-item-desc">متابعة الطيارين والعهد وتقفيل النقدية</div>
+                </div>
+                <i class="fas fa-chevron-left more-item-arrow"></i>
+            </button>
             <button type="button" class="more-menu-item" onclick="switchView('hr'); toggleMobileMoreMenu(false);">
                 <div class="more-item-icon blue"><i class="fas fa-users-cog"></i></div>
                 <div class="more-item-info">
@@ -1108,6 +1143,7 @@
                             <option value="ويتر (مقدم طعام)">ويتر (مقدم طعام)</option>
                             <option value="كاشير">كاشير</option>
                             <option value="عامل توصيل (ديليفري)">عامل توصيل (ديليفري)</option>
+                            <option value="طيار توصيل (سائق دليفري)">طيار توصيل (سائق دليفري)</option>
                             <option value="عامل نظافة وجلي">عامل نظافة وجلي</option>
                             <option value="مدير صالة">مدير صالة</option>
                         </select>
@@ -1451,6 +1487,169 @@
     </div>
 </div>
 
+<!-- نافذة إدخال بيانات التوصيل ومندوب الدليفري العصرية -->
+<div class="modal-overlay" id="delivery-order-modal">
+    <div class="modal-card" style="max-width: 540px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-motorcycle" style="color: #059669;"></i> بيانات التوصيل والدليفري</h3>
+            <button class="modal-close-btn" onclick="closeModal('delivery-order-modal')">&times;</button>
+        </div>
+        <form id="delivery-order-form" onsubmit="event.preventDefault(); saveDeliveryModalData();">
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; max-height: 75vh; overflow-y: auto;">
+                
+                <!-- هاتف العميل واسترجاع البيانات التلقائي -->
+                <div class="form-group" style="margin: 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <label style="font-weight: 700; font-size: 0.88rem; margin: 0;"><i class="fas fa-phone-alt" style="color: #0284c7;"></i> رقم هاتف العميل:</label>
+                        <span id="cust-lookup-badge" class="badge-lookup" style="display: none;">✨ عميل مسجل</span>
+                    </div>
+                    <div style="position: relative;">
+                        <input type="tel" id="delivery-input-phone" class="form-control delivery-phone-input" placeholder="أدخل رقم الهاتف (مثال: 0501234567)" autocomplete="off" oninput="handleCustomerPhoneInput(this.value)" style="padding-left: 36px; font-weight: 700; letter-spacing: 0.5px;">
+                        <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; pointer-events: none;"></i>
+                    </div>
+                    <span style="font-size: 0.75rem; color: #64748b; margin-top: 3px; display: block;">بمجرد كتابة رقم الهاتف، سيتم استرجاع الاسم والعنوان تلقائياً إذا كان مسجلاً سابقاً.</span>
+                </div>
+
+                <!-- اسم العميل -->
+                <div class="form-group" style="margin: 0;">
+                    <label style="font-weight: 700; font-size: 0.88rem; margin-bottom: 5px;"><i class="fas fa-user" style="color: #6366f1;"></i> اسم العميل:</label>
+                    <input type="text" id="delivery-input-name" class="form-control" placeholder="اسم العميل الكريم" required>
+                </div>
+
+                <!-- عنوان التوصيل بالتفصيل -->
+                <div class="form-group" style="margin: 0;">
+                    <label style="font-weight: 700; font-size: 0.88rem; margin-bottom: 5px;"><i class="fas fa-map-marker-alt" style="color: #ef4444;"></i> عنوان التوصيل بالتفصيل:</label>
+                    <textarea id="delivery-input-address" class="form-control" rows="2" placeholder="المنطقة / الحي، اسم الشارع، رقم المبنى والشقة، علامة مميزة..." required style="resize: vertical;"></textarea>
+                </div>
+
+                <!-- اختيار طيار التوصيل (مندوب الدليفري) -->
+                <div class="form-group" style="margin: 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <label style="font-weight: 700; font-size: 0.88rem; margin: 0;"><i class="fas fa-biking" style="color: #f59e0b;"></i> سائق التوصيل (الطيار):</label>
+                        <a href="javascript:void(0)" onclick="closeModal('delivery-order-modal'); switchView('hr'); openModal('add-employee-modal');" style="font-size: 0.75rem; color: var(--primary); text-decoration: none; font-weight: 700;">+ إضافة سائق جديد</a>
+                    </div>
+                    <select id="delivery-driver-select" class="form-control" onchange="handleDeliveryDriverSelect(this.value)">
+                        <!-- يتم ملؤها ديناميكياً من الموظفين بدور التوصيل -->
+                    </select>
+                    <input type="text" id="delivery-driver-custom-input" class="form-control" placeholder="اكتب اسم مندوب التوصيل يدوياً..." style="display: none; margin-top: 6px;">
+                </div>
+
+                <!-- رسوم خدمة التوصيل -->
+                <div class="form-group" style="margin: 0; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px 12px; border-radius: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <label style="font-weight: 700; font-size: 0.88rem; margin: 0; color: #166534;"><i class="fas fa-tag"></i> رسوم خدمة التوصيل (Delivery Fee):</label>
+                        <span id="delivery-fee-display-val" style="font-weight: 800; color: #166534;">0.00 ر.س</span>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="number" id="delivery-input-fee" class="form-control" value="0" min="0" step="1" oninput="setDeliveryFeeQuick(this.value, false)" style="width: 120px; font-weight: 700; text-align: center;">
+                        <div class="quick-fee-chips" style="display: flex; gap: 4px; flex-wrap: wrap;">
+                            <button type="button" class="btn-fee-chip" onclick="setDeliveryFeeQuick(0)">مجاني</button>
+                            <button type="button" class="btn-fee-chip" onclick="setDeliveryFeeQuick(10)">10</button>
+                            <button type="button" class="btn-fee-chip" onclick="setDeliveryFeeQuick(15)">15</button>
+                            <button type="button" class="btn-fee-chip" onclick="setDeliveryFeeQuick(20)">20</button>
+                            <button type="button" class="btn-fee-chip" onclick="setDeliveryFeeQuick(25)">25</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ملاحظات التوصيل -->
+                <div class="form-group" style="margin: 0;">
+                    <label style="font-weight: 700; font-size: 0.88rem; margin-bottom: 5px;"><i class="fas fa-info-circle" style="color: #64748b;"></i> تعليمات خاصة للتوصيل (اختياري):</label>
+                    <input type="text" id="delivery-input-notes" class="form-control" placeholder="مثال: يرجى الاتصال عند الوصول، الباقي من 200...">
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-icon-text" onclick="closeModal('delivery-order-modal')">إلغاء</button>
+                <button type="submit" class="btn-checkout" style="flex: initial; padding: 10px 24px;"><i class="fas fa-check"></i> تأكيد وحفظ بيانات التوصيل</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- نافذة إدارة وتقفيل طلبات الدليفري الشاملة (Delivery Settlement Hub) -->
+<div class="modal-overlay" id="delivery-hub-modal">
+    <div class="modal-card" style="max-width: 850px; width: 95vw;">
+        <div class="modal-header">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="width: 38px; height: 38px; border-radius: 10px; background: #ecfdf5; color: #059669; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;">
+                    <i class="fas fa-motorcycle"></i>
+                </div>
+                <div>
+                    <h3 style="margin: 0; font-size: 1.15rem;">إدارة وتقفيل طلبات الدليفري والطيارين</h3>
+                    <p style="margin: 2px 0 0; font-size: 0.78rem; color: #64748b;">متابعة خروج الطلبات مع المناديب وتقفيل العهد النقدية اليومية</p>
+                </div>
+            </div>
+            <button class="modal-close-btn" onclick="closeModal('delivery-hub-modal')">&times;</button>
+        </div>
+
+        <div class="modal-body" style="padding: 16px; max-height: 80vh; overflow-y: auto;">
+            <!-- مؤشرات الأداء السريعة للتوصيل -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 16px;">
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <div style="font-size: 0.78rem; color: #64748b; font-weight: 700;">طلبات جارية مع الطيارين</div>
+                        <div style="font-size: 1.4rem; font-weight: 800; color: #0284c7;" id="hub-kpi-active-count">0</div>
+                    </div>
+                    <div style="width: 40px; height: 40px; border-radius: 8px; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;"><i class="fas fa-route"></i></div>
+                </div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <div style="font-size: 0.78rem; color: #64748b; font-weight: 700;">نقدية بعهدة الطيارين (للتحصيل)</div>
+                        <div style="font-size: 1.4rem; font-weight: 800; color: #16a34a;" id="hub-kpi-cash-to-collect">0.00 ر.س</div>
+                    </div>
+                    <div style="width: 40px; height: 40px; border-radius: 8px; background: #dcfce7; color: #16a34a; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;"><i class="fas fa-hand-holding-usd"></i></div>
+                </div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <div style="font-size: 0.78rem; color: #64748b; font-weight: 700;">طلبات تم تقفيلها اليوم</div>
+                        <div style="font-size: 1.4rem; font-weight: 800; color: #7c3aed;" id="hub-kpi-settled-count">0</div>
+                    </div>
+                    <div style="width: 40px; height: 40px; border-radius: 8px; background: #ede9fe; color: #7c3aed; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;"><i class="fas fa-check-double"></i></div>
+                </div>
+            </div>
+
+            <!-- شريط التبويبات داخل نافذة الدليفري -->
+            <div style="display: flex; gap: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 16px;">
+                <button type="button" class="kds-station-tab active" id="hub-tab-drivers" onclick="switchDeliveryHubTab('drivers')">
+                    <i class="fas fa-users"></i> تقفيل حسابات الطيارين والعهد
+                </button>
+                <button type="button" class="kds-station-tab" id="hub-tab-orders" onclick="switchDeliveryHubTab('orders')">
+                    <i class="fas fa-list-ul"></i> قائمة طلبات التوصيل الجارية
+                </button>
+                <button type="button" class="kds-station-tab" id="hub-tab-history" onclick="switchDeliveryHubTab('history')">
+                    <i class="fas fa-history"></i> سجل الطلبات المقفلة
+                </button>
+            </div>
+
+            <!-- تبويب 1: تقفيل حسابات الطيارين والعهد المالية -->
+            <div id="hub-section-drivers">
+                <div id="hub-drivers-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px;">
+                    <!-- كروت الطيارين يتم توليدها ديناميكياً -->
+                </div>
+            </div>
+
+            <!-- تبويب 2: قائمة الطلبات الجارية -->
+            <div id="hub-section-orders" style="display: none;">
+                <div id="hub-active-orders-list" style="display: flex; flex-direction: column; gap: 10px;">
+                    <!-- بطاقات الطلبات الجارية -->
+                </div>
+            </div>
+
+            <!-- تبويب 3: سجل الطلبات المقفلة -->
+            <div id="hub-section-history" style="display: none;">
+                <div id="hub-settled-orders-list" style="display: flex; flex-direction: column; gap: 8px;">
+                    <!-- سجل الطلبات المقفلة -->
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" class="btn-icon-text" onclick="closeModal('delivery-hub-modal')">إلغاء</button>
+        </div>
+    </div>
+</div>
+
 <!-- نافذة إضافة وتعديل صنف في المنيو -->
 <div class="modal-overlay" id="item-edit-modal">
     <div class="modal-card" style="max-width: 540px;">
@@ -1569,7 +1768,7 @@
 </div>
 
 <!-- ملف الجافاسكريبت الرئيسي المطور -->
-<script src="js/app.js?v=3.7"></script>
+<script src="js/app.js?v=3.8"></script>
 
 <!-- تسجيل الـ Service Worker لتشغيل PWA -->
 <script>

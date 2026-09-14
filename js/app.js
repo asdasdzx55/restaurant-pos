@@ -77,7 +77,22 @@ const state = {
     expenses: [],
     ordersHistory: [],
     kitchenOrders: [],
-    selectedKitchenStation: 'all'
+    selectedKitchenStation: 'all',
+
+    // نظام التوصيل والدليفري وتقفيل الحسابات
+    deliveryFee: 0,
+    selectedDriver: '',
+    deliveryInfo: {
+        name: '',
+        phone: '',
+        address: '',
+        driver: '',
+        fee: 0,
+        notes: ''
+    },
+    customers: [],
+    deliveryOrders: [],
+    activeHubTab: 'drivers'
 };
 
 // =============================================================================
@@ -104,6 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderExpenses();
     renderReports();
     updateKitchenBadge();
+    updateDeliveryBadge();
     updateInstallButtonVisibility();
 });
 
@@ -246,6 +262,59 @@ function loadERPData() {
         try { state.kitchenOrders = JSON.parse(savedKitchen); } catch(e) {}
     }
     if (!state.kitchenOrders) state.kitchenOrders = [];
+
+    // 7. سجل عملاء التوصيل (CRM Customers Database)
+    const savedCustomers = localStorage.getItem('codeart_pos_customers');
+    if (savedCustomers) {
+        try { state.customers = JSON.parse(savedCustomers); } catch(e) {}
+    }
+    if (!state.customers || state.customers.length === 0) {
+        state.customers = [
+            { phone: '0501234567', name: 'أحمد محمود', address: 'حي المروة - شارع الأمل - عمارة 14 الدور 3 شقة 6', notes: 'يرن الجرس ولا يطرق الباب' },
+            { phone: '0559876543', name: 'سارة خالد', address: 'حي النخيل - فيلا 28 بجانب مسجد الفردوس', notes: 'الدفع عند الاستلام كاش' },
+            { phone: '0543210987', name: 'فيصل العتيبي', address: 'طريق الملك عبد العزيز - برج الياسمين مكتب 402', notes: 'الاتصال قبل الوصول بـ 5 دقائق' }
+        ];
+        saveCustomers();
+    }
+
+    // 8. سجل طلبات التوصيل وتقفيل الدليفري (Delivery Orders Hub)
+    const savedDeliveryOrders = localStorage.getItem('codeart_pos_delivery_orders');
+    if (savedDeliveryOrders) {
+        try { state.deliveryOrders = JSON.parse(savedDeliveryOrders); } catch(e) {}
+    }
+    if (!state.deliveryOrders || state.deliveryOrders.length === 0) {
+        state.deliveryOrders = [
+            {
+                id: 'DEL-1041',
+                customer_name: 'أحمد محمود',
+                customer_phone: '0501234567',
+                customer_address: 'حي المروة - شارع الأمل - عمارة 14 الدور 3',
+                delivery_driver: 'كريم يوسف',
+                delivery_fee: 15,
+                subtotal: 180,
+                total_price: 195,
+                payment_method: 'cash',
+                created_at: '17:15',
+                status: 'out_for_delivery',
+                items: [{ name: 'بيتزا سوبريم', quantity: 1, price: 120 }, { name: 'بطاطس ودجز', quantity: 2, price: 30 }]
+            },
+            {
+                id: 'DEL-1042',
+                customer_name: 'سارة خالد',
+                customer_phone: '0559876543',
+                customer_address: 'حي النخيل - فيلا 28 بجانب مسجد الفردوس',
+                delivery_driver: 'كريم يوسف',
+                delivery_fee: 15,
+                subtotal: 140,
+                total_price: 155,
+                payment_method: 'cash',
+                created_at: '17:30',
+                status: 'out_for_delivery',
+                items: [{ name: 'برجر كلاسيك دبل', quantity: 2, price: 50 }, { name: 'بيبسي عائلي', quantity: 1, price: 40 }]
+            }
+        ];
+        saveDeliveryOrders();
+    }
 
     // 7. ذاكرة المنيو المحلي (Offline-First Menu Cache)
     const cachedMenu = localStorage.getItem('codeart_pos_menu_cache');
@@ -682,28 +751,31 @@ function setOrderType(type) {
     });
 
     const tableWrap = document.getElementById('table-input-wrapper');
-    const deliveryWrap = document.getElementById('delivery-inputs-wrapper');
+    const deliveryCard = document.getElementById('delivery-card-summary');
     const btnSaveTable = document.getElementById('btn-save-table');
 
     if (state.orderType === 'dinein') {
         if (tableWrap) tableWrap.style.display = 'flex';
-        if (deliveryWrap) deliveryWrap.style.display = 'none';
+        if (deliveryCard) deliveryCard.style.display = 'none';
         if (btnSaveTable) {
             btnSaveTable.style.display = 'inline-flex';
             btnSaveTable.disabled = (state.cart.length === 0);
         }
     } else if (state.orderType === 'delivery') {
         if (tableWrap) tableWrap.style.display = 'none';
-        if (deliveryWrap) deliveryWrap.style.display = 'flex';
+        if (deliveryCard) {
+            deliveryCard.style.display = 'block';
+            updateDeliveryCardDisplay();
+        }
         if (btnSaveTable) btnSaveTable.style.display = 'none';
     } else {
         // takeaway (سفري / تكاوي)
         if (tableWrap) tableWrap.style.display = 'none';
-        if (deliveryWrap) deliveryWrap.style.display = 'none';
+        if (deliveryCard) deliveryCard.style.display = 'none';
         if (btnSaveTable) btnSaveTable.style.display = 'none';
     }
 
-    // تحديث الحسابات الخاصة بالضريبة ورسوم الصالة
+    // تحديث الحسابات الخاصة بالضريبة ورسوم الصالة ورسوم التوصيل
     const subtotal = state.cart.reduce((sum, it) => sum + (it.price * it.quantity), 0);
     updateTotals(subtotal);
 }
@@ -850,9 +922,12 @@ function updateTotals(subtotal) {
     const cardFeePercent = (state.paymentMethod === 'card') ? Number(state.settings.cardFeePercent || 0) : 0;
     const cardFee = (subtotal * cardFeePercent) / 100;
 
-    // 3. ضريبة القيمة المضافة
+    // 3. خدمة التوصيل والدليفري (تطبق فقط عند اختيار توصيل)
+    const deliveryFee = (state.orderType === 'delivery') ? Number(state.deliveryFee || 0) : 0;
+
+    // 4. ضريبة القيمة المضافة
     const taxRate = Number(state.settings.taxPercent || 0) / 100;
-    const taxableBase = subtotal + tableServiceFee + cardFee;
+    const taxableBase = subtotal + tableServiceFee + cardFee + deliveryFee;
     const taxAmount = taxableBase * taxRate;
     const grandTotal = taxableBase + taxAmount;
 
@@ -879,6 +954,17 @@ function updateTotals(subtotal) {
             cartCardFee.textContent = `+${cardFee.toFixed(2)} ${state.settings.currency} (${cardFeePercent}%)`;
         } else {
             rowCardFee.style.display = 'none';
+        }
+    }
+
+    const rowDeliveryFee = document.getElementById('row-delivery-fee');
+    const summaryDeliveryFee = document.getElementById('summary-delivery-fee');
+    if (rowDeliveryFee && summaryDeliveryFee) {
+        if (state.orderType === 'delivery' && deliveryFee > 0) {
+            rowDeliveryFee.style.display = 'flex';
+            summaryDeliveryFee.textContent = `+${deliveryFee.toFixed(2)} ${state.settings.currency}`;
+        } else {
+            rowDeliveryFee.style.display = 'none';
         }
     }
 
@@ -967,13 +1053,24 @@ function saveTableOrderPartial() {
 
 async function submitOrder() {
     if (state.cart.length === 0) return;
+
+    // إذا كان نوع الطلب توصيل، نتأكد من إدخال بيانات العميل وعنوان التوصيل
+    if (state.orderType === 'delivery') {
+        if (!state.deliveryInfo || !state.deliveryInfo.name || !state.deliveryInfo.address) {
+            showToast('يرجى استكمال بيانات العميل وعنوان التوصيل أولاً 🛵', 'warning');
+            openDeliveryDetailsModal();
+            return;
+        }
+    }
+
     const subtotal = state.cart.reduce((sum, it) => sum + (it.price * it.quantity), 0);
     const tableServicePercent = (state.orderType === 'dinein') ? Number(state.settings.tableServicePercent || 0) : 0;
     const tableServiceFee = (subtotal * tableServicePercent) / 100;
     const cardFeePercent = (state.paymentMethod === 'card') ? Number(state.settings.cardFeePercent || 0) : 0;
     const cardFee = (subtotal * cardFeePercent) / 100;
+    const deliveryFee = (state.orderType === 'delivery') ? Number(state.deliveryFee || 0) : 0;
     const taxRate = Number(state.settings.taxPercent || 0) / 100;
-    const taxableBase = subtotal + tableServiceFee + cardFee;
+    const taxableBase = subtotal + tableServiceFee + cardFee + deliveryFee;
     const taxAmount = taxableBase * taxRate;
     const grandTotal = taxableBase + taxAmount;
 
@@ -985,12 +1082,15 @@ async function submitOrder() {
         note: c.note || ''
     }));
 
-    const tableLabel = document.getElementById('table-num-input').value.trim() || 'طاولة 1';
+    const tableLabel = document.getElementById('table-num-input')?.value.trim() || 'طاولة 1';
     const orderPayload = {
         username: state.settings.user,
-        customer_name: state.orderType === 'delivery' ? (document.getElementById('cust-name').value || 'عميل توصيل') : 'عميل المطعم',
-        customer_phone: state.orderType === 'delivery' ? (document.getElementById('cust-phone').value || '') : '',
-        customer_address: state.orderType === 'delivery' ? (document.getElementById('cust-address').value || '') : '',
+        customer_name: state.orderType === 'delivery' ? (state.deliveryInfo?.name || 'عميل توصيل') : 'عميل المطعم',
+        customer_phone: state.orderType === 'delivery' ? (state.deliveryInfo?.phone || '') : '',
+        customer_address: state.orderType === 'delivery' ? (state.deliveryInfo?.address || '') : '',
+        delivery_driver: state.orderType === 'delivery' ? (state.deliveryInfo?.driver || 'بانتظار سائق') : '',
+        delivery_fee: deliveryFee,
+        delivery_notes: state.orderType === 'delivery' ? (state.deliveryInfo?.notes || '') : '',
         table_number: state.orderType === 'dinein' ? tableLabel : '',
         order_type: state.orderType,
         payment_method: state.paymentMethod || 'cash',
@@ -1037,6 +1137,41 @@ async function submitOrder() {
     orderPayload.id = orderId;
     state.ordersHistory.unshift(orderPayload);
     saveOrdersHistory();
+
+    // إذا كان الطلب دليفري، نضيفه إلى سجل طلبات التوصيل وتقفيل الدليفري
+    if (state.orderType === 'delivery') {
+        if (!state.deliveryOrders) state.deliveryOrders = [];
+        state.deliveryOrders.unshift({
+            id: orderId,
+            customer_name: orderPayload.customer_name,
+            customer_phone: orderPayload.customer_phone,
+            customer_address: orderPayload.customer_address,
+            delivery_driver: orderPayload.delivery_driver,
+            delivery_fee: orderPayload.delivery_fee,
+            delivery_notes: orderPayload.delivery_notes,
+            subtotal: orderPayload.subtotal,
+            total_price: orderPayload.total_price,
+            payment_method: orderPayload.payment_method,
+            created_at: orderPayload.created_at,
+            items: orderPayload.items,
+            status: 'out_for_delivery'
+        });
+        saveDeliveryOrders();
+        updateDeliveryBadge();
+
+        // حفظ بيانات العميل في سجل العملاء للبحث والاسترجاع التلقائي
+        if (orderPayload.customer_phone) {
+            saveCustomerToDb({
+                phone: orderPayload.customer_phone,
+                name: orderPayload.customer_name,
+                address: orderPayload.customer_address,
+                notes: orderPayload.delivery_notes
+            });
+        }
+
+        // تفريغ بيانات التوصيل للطلب التالي
+        resetDeliveryInfo();
+    }
 
     // إذا كانت الطاولة مفعلة، إخلاؤها
     if (state.activeTableId) {
@@ -1570,6 +1705,495 @@ function printDepartmentKitchenSlip(orderId, departmentKey) {
 }
 
 // =============================================================================
+// نظام التوصيل والدليفري وتقفيل الحسابات (Delivery & Settlement Hub Engine)
+// =============================================================================
+
+function saveCustomers() {
+    try {
+        localStorage.setItem('codeart_pos_customers', JSON.stringify(state.customers || []));
+    } catch(e) {}
+}
+
+function saveDeliveryOrders() {
+    try {
+        localStorage.setItem('codeart_pos_delivery_orders', JSON.stringify(state.deliveryOrders || []));
+    } catch(e) {}
+}
+
+function updateDeliveryBadge() {
+    const badge = document.getElementById('delivery-hub-badge');
+    if (!badge) return;
+    const activeCount = (state.deliveryOrders || []).filter(o => o.status === 'out_for_delivery').length;
+    if (activeCount > 0) {
+        badge.style.display = 'inline-flex';
+        badge.textContent = activeCount;
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+// 1. استرجاع بيانات العميل تلقائياً بمجرد إدخال رقم الهاتف (Customer Phone Lookup)
+function handleCustomerPhoneInput(phone) {
+    const cleanPhone = String(phone || '').replace(/[^\d+]/g, '').trim();
+    const badge = document.getElementById('cust-lookup-badge');
+    const nameInput = document.getElementById('delivery-input-name');
+    const addressInput = document.getElementById('delivery-input-address');
+    const notesInput = document.getElementById('delivery-input-notes');
+
+    if (!cleanPhone || cleanPhone.length < 7) {
+        if (badge) badge.style.display = 'none';
+        return;
+    }
+
+    // البحث في سجل العملاء المحفوظ
+    const foundCust = (state.customers || []).find(c => {
+        const cPhone = String(c.phone || '').replace(/[^\d+]/g, '').trim();
+        return cPhone && (cPhone === cleanPhone || cPhone.endsWith(cleanPhone) || cleanPhone.endsWith(cPhone));
+    });
+
+    if (foundCust) {
+        if (nameInput && (!nameInput.value || nameInput.value.trim() === 'عميل توصيل')) {
+            nameInput.value = foundCust.name || '';
+        }
+        if (addressInput && !addressInput.value) {
+            addressInput.value = foundCust.address || '';
+        }
+        if (notesInput && !notesInput.value && foundCust.notes) {
+            notesInput.value = foundCust.notes;
+        }
+        if (badge) {
+            badge.style.display = 'inline-block';
+            badge.textContent = `✨ عميل مسجل: ${foundCust.name}`;
+        }
+        showToast(`تم استرجاع بيانات العميل "${foundCust.name}" تلقائياً! ⚡`, 'info');
+    } else {
+        if (badge) badge.style.display = 'none';
+    }
+}
+
+// 2. تعبئة قائمة مناديب وسائقي التوصيل (Delivery Drivers)
+function populateDeliveryDriversDropdown(selectedDriverVal) {
+    const select = document.getElementById('delivery-driver-select');
+    if (!select) return;
+
+    // استخراج الموظفين الذين يحملون مسمى وظيفي خاص بالتوصيل أو الدليفري أو طيار
+    const driverEmployees = (state.employees || []).filter(e => {
+        const role = String(e.role || '').toLowerCase();
+        return role.includes('توصيل') || role.includes('ديليفري') || role.includes('دليفري') || role.includes('طيار') || role.includes('سائق');
+    });
+
+    let optionsHtml = `<option value="">-- اختر طيار التوصيل (أو اتركه لتعيينه لاحقاً) --</option>`;
+    
+    if (driverEmployees.length === 0) {
+        optionsHtml += `<option value="كريم يوسف">كريم يوسف (طيار دليفري)</option>`;
+    } else {
+        driverEmployees.forEach(d => {
+            optionsHtml += `<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)} (${escapeHtml(d.role)})</option>`;
+        });
+    }
+
+    optionsHtml += `<option value="__custom__">➕ مندوب خارجي / كتابة اسم جديد...</option>`;
+    select.innerHTML = optionsHtml;
+
+    if (selectedDriverVal) {
+        const exists = Array.from(select.options).some(opt => opt.value === selectedDriverVal);
+        if (exists) {
+            select.value = selectedDriverVal;
+            const customInput = document.getElementById('delivery-driver-custom-input');
+            if (customInput) customInput.style.display = 'none';
+        } else {
+            select.value = '__custom__';
+            const customInput = document.getElementById('delivery-driver-custom-input');
+            if (customInput) {
+                customInput.style.display = 'block';
+                customInput.value = selectedDriverVal;
+            }
+        }
+    }
+}
+
+function handleDeliveryDriverSelect(val) {
+    const customInput = document.getElementById('delivery-driver-custom-input');
+    if (val === '__custom__') {
+        if (customInput) {
+            customInput.style.display = 'block';
+            customInput.focus();
+        }
+    } else {
+        if (customInput) {
+            customInput.style.display = 'none';
+            customInput.value = '';
+        }
+    }
+}
+
+// 3. تحديد رسوم التوصيل السريعة
+function setDeliveryFeeQuick(amount, updateInput = true) {
+    const num = Math.max(0, parseFloat(amount) || 0);
+    state.deliveryFee = num;
+    if (state.deliveryInfo) state.deliveryInfo.fee = num;
+
+    const displayEl = document.getElementById('delivery-fee-display-val');
+    if (displayEl) displayEl.textContent = `${num.toFixed(2)} ${state.settings.currency}`;
+
+    const inputEl = document.getElementById('delivery-input-fee');
+    if (inputEl && updateInput) inputEl.value = num;
+
+    document.querySelectorAll('.btn-fee-chip').forEach(btn => {
+        const val = parseFloat(btn.textContent) || 0;
+        if ((val === 0 && num === 0 && btn.textContent.includes('مجاني')) || (val === num)) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    updateTotals();
+}
+
+// 4. فتح نافذة إدخال بيانات التوصيل
+function openDeliveryDetailsModal() {
+    populateDeliveryDriversDropdown(state.deliveryInfo?.driver || '');
+    
+    const info = state.deliveryInfo || {};
+    const phoneInput = document.getElementById('delivery-input-phone');
+    const nameInput = document.getElementById('delivery-input-name');
+    const addressInput = document.getElementById('delivery-input-address');
+    const notesInput = document.getElementById('delivery-input-notes');
+
+    if (phoneInput) phoneInput.value = info.phone || '';
+    if (nameInput) nameInput.value = info.name || '';
+    if (addressInput) addressInput.value = info.address || '';
+    if (notesInput) notesInput.value = info.notes || '';
+
+    setDeliveryFeeQuick(info.fee !== undefined ? info.fee : (state.deliveryFee || 0));
+
+    if (info.phone) handleCustomerPhoneInput(info.phone);
+
+    openModal('delivery-order-modal');
+}
+
+// 5. حفظ بيانات التوصيل من النافذة
+function saveDeliveryModalData() {
+    const phoneInput = document.getElementById('delivery-input-phone');
+    const nameInput = document.getElementById('delivery-input-name');
+    const addressInput = document.getElementById('delivery-input-address');
+    const notesInput = document.getElementById('delivery-input-notes');
+    const driverSelect = document.getElementById('delivery-driver-select');
+    const customDriverInput = document.getElementById('delivery-driver-custom-input');
+    const feeInput = document.getElementById('delivery-input-fee');
+
+    const phone = phoneInput ? phoneInput.value.trim() : '';
+    const name = nameInput ? nameInput.value.trim() : '';
+    const address = addressInput ? addressInput.value.trim() : '';
+    const notes = notesInput ? notesInput.value.trim() : '';
+    const fee = feeInput ? (parseFloat(feeInput.value) || 0) : 0;
+
+    let driver = driverSelect ? driverSelect.value : '';
+    if (driver === '__custom__' && customDriverInput) {
+        driver = customDriverInput.value.trim();
+    }
+
+    if (!name) {
+        showToast('يرجى كتابة اسم العميل', 'warning');
+        return;
+    }
+    if (!address) {
+        showToast('يرجى كتابة عنوان التوصيل بالتفصيل', 'warning');
+        return;
+    }
+
+    state.deliveryInfo = {
+        phone,
+        name,
+        address,
+        notes,
+        driver: driver || 'بانتظار سائق',
+        fee
+    };
+    state.deliveryFee = fee;
+
+    updateDeliveryCardDisplay();
+
+    if (phone) {
+        saveCustomerToDb({ phone, name, address, notes });
+    }
+
+    closeModal('delivery-order-modal');
+    updateTotals();
+    showToast('تم حفظ وتحديث بيانات التوصيل بنجاح! 🛵', 'success');
+}
+
+function updateDeliveryCardDisplay() {
+    const info = state.deliveryInfo || {};
+    const nameEl = document.getElementById('display-delivery-cust-name');
+    const phoneEl = document.getElementById('display-delivery-cust-phone');
+    const addressEl = document.getElementById('display-delivery-cust-address');
+    const driverEl = document.getElementById('display-delivery-driver');
+    const feeEl = document.getElementById('display-delivery-fee');
+
+    if (nameEl) nameEl.innerHTML = `<i class="fas fa-user"></i> ${escapeHtml(info.name || 'عميل توصيل')}`;
+    if (phoneEl) phoneEl.innerHTML = `<i class="fas fa-phone"></i> ${escapeHtml(info.phone || 'بدون هاتف')}`;
+    if (addressEl) addressEl.innerHTML = `<i class="fas fa-map-marker-alt"></i> ${escapeHtml(info.address || 'العنوان غير محدد')}`;
+    if (driverEl) driverEl.innerHTML = `<i class="fas fa-biking"></i> ${escapeHtml(info.driver || 'بانتظار طيار')}`;
+    if (feeEl) feeEl.innerHTML = `<i class="fas fa-tag"></i> خدمة: ${(info.fee || 0).toFixed(2)} ${state.settings.currency}`;
+}
+
+function resetDeliveryInfo() {
+    state.deliveryInfo = {
+        name: '',
+        phone: '',
+        address: '',
+        driver: '',
+        fee: 0,
+        notes: ''
+    };
+    state.deliveryFee = 0;
+    updateDeliveryCardDisplay();
+}
+
+function saveCustomerToDb(cust) {
+    if (!cust.phone) return;
+    if (!state.customers) state.customers = [];
+    const cleanPhone = String(cust.phone).replace(/[^\d+]/g, '').trim();
+    const idx = state.customers.findIndex(c => String(c.phone).replace(/[^\d+]/g, '').trim() === cleanPhone);
+    if (idx >= 0) {
+        state.customers[idx] = { ...state.customers[idx], ...cust };
+    } else {
+        state.customers.push(cust);
+    }
+    saveCustomers();
+}
+
+// =============================================================================
+// شاشة وإدارة تقفيل الدليفري (Delivery Settlement Hub)
+// =============================================================================
+
+function openDeliveryHubModal() {
+    renderDeliveryHub();
+    openModal('delivery-hub-modal');
+}
+
+function switchDeliveryHubTab(tabName) {
+    state.activeHubTab = tabName;
+    ['drivers', 'orders', 'history'].forEach(t => {
+        const btn = document.getElementById(`hub-tab-${t}`);
+        const sec = document.getElementById(`hub-section-${t}`);
+        if (btn) btn.classList.toggle('active', t === tabName);
+        if (sec) sec.style.display = (t === tabName) ? 'block' : 'none';
+    });
+    renderDeliveryHub();
+}
+
+function renderDeliveryHub() {
+    const orders = state.deliveryOrders || [];
+    const activeOrders = orders.filter(o => o.status === 'out_for_delivery');
+    const settledOrders = orders.filter(o => o.status === 'settled');
+
+    const cashToCollect = activeOrders
+        .filter(o => (o.payment_method || 'cash') === 'cash')
+        .reduce((sum, o) => sum + Number(o.total_price || 0), 0);
+
+    const kpiActive = document.getElementById('hub-kpi-active-count');
+    const kpiCash = document.getElementById('hub-kpi-cash-to-collect');
+    const kpiSettled = document.getElementById('hub-kpi-settled-count');
+
+    if (kpiActive) kpiActive.textContent = activeOrders.length;
+    if (kpiCash) kpiCash.textContent = `${cashToCollect.toFixed(2)} ${state.settings.currency}`;
+    if (kpiSettled) kpiSettled.textContent = settledOrders.length;
+
+    updateDeliveryBadge();
+
+    renderDriversSettlementCards(activeOrders);
+    renderActiveDeliveryOrders(activeOrders);
+    renderSettledDeliveryOrders(settledOrders);
+}
+
+function renderDriversSettlementCards(activeOrders) {
+    const grid = document.getElementById('hub-drivers-grid');
+    if (!grid) return;
+
+    const driversMap = {};
+    activeOrders.forEach(o => {
+        const driver = o.delivery_driver || 'غير محدد';
+        if (!driversMap[driver]) {
+            driversMap[driver] = {
+                name: driver,
+                orders: [],
+                totalCash: 0,
+                totalOrders: 0
+            };
+        }
+        driversMap[driver].orders.push(o);
+        driversMap[driver].totalOrders++;
+        if ((o.payment_method || 'cash') === 'cash') {
+            driversMap[driver].totalCash += Number(o.total_price || 0);
+        }
+    });
+
+    const driverKeys = Object.keys(driversMap);
+    if (driverKeys.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #94a3b8;">
+                <i class="fas fa-check-circle" style="font-size: 3rem; color: #10b981; margin-bottom: 10px; display: block;"></i>
+                <div style="font-weight: 800; font-size: 1.1rem; color: #0f172a;">جميع حسابات وعهد الطيارين مقفلة بالكامل! 🎉</div>
+                <p style="font-size: 0.85rem; margin-top: 4px;">لا توجد أي مبالغ نقدية معلقة مع مناديب التوصيل حالياً</p>
+            </div>
+        `;
+        return;
+    }
+
+    let html = '';
+    driverKeys.forEach(key => {
+        const d = driversMap[key];
+        const orderIdsText = d.orders.map(o => `#${o.id}`).join('، ');
+        html += `
+            <div class="driver-settlement-card">
+                <div class="driver-card-header">
+                    <div class="driver-avatar-box"><i class="fas fa-biking"></i></div>
+                    <div class="driver-info-main">
+                        <h4>${escapeHtml(d.name)}</h4>
+                        <span>طيار توصيل • ${d.totalOrders} طلبات جارية</span>
+                    </div>
+                </div>
+                <div class="driver-settlement-stats">
+                    <div>
+                        <div style="font-size: 0.75rem; color: #64748b;">الطلبات بعهدته:</div>
+                        <div style="font-size: 0.85rem; font-weight: 700; color: #0284c7;">${orderIdsText}</div>
+                    </div>
+                    <div style="text-align: left;">
+                        <div style="font-size: 0.75rem; color: #64748b;">النقدية المطلوب توريدها:</div>
+                        <div class="driver-stat-val" style="color: #16a34a;">${d.totalCash.toFixed(2)} ${state.settings.currency}</div>
+                    </div>
+                </div>
+                <button type="button" class="btn-settle-driver" onclick="settleDriverOrders('${escapeHtml(d.name)}')">
+                    <i class="fas fa-hand-holding-usd"></i>
+                    <span>تقفيل واستلام النقدية (${d.totalCash.toFixed(2)} ${state.settings.currency})</span>
+                </button>
+            </div>
+        `;
+    });
+
+    grid.innerHTML = html;
+}
+
+function renderActiveDeliveryOrders(activeOrders) {
+    const list = document.getElementById('hub-active-orders-list');
+    if (!list) return;
+
+    if (activeOrders.length === 0) {
+        list.innerHTML = `<div style="text-align: center; padding: 30px; color: #94a3b8;">لا توجد طلبات توصيل جارية حالياً</div>`;
+        return;
+    }
+
+    let html = '';
+    activeOrders.forEach(ord => {
+        const items = normalizeOrderItems(ord.items);
+        const itemsText = items.map(i => `${i.name} × ${i.quantity}`).join('، ');
+        html += `
+            <div class="hub-order-card">
+                <div style="flex: 1; min-width: 260px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                        <span style="font-weight: 800; font-size: 0.95rem; color: #0f172a;">طلب #${ord.id}</span>
+                        <span style="font-size: 0.72rem; background: #e0f2fe; color: #0369a1; padding: 2px 7px; border-radius: 4px; font-weight: 700;"><i class="fas fa-motorcycle"></i> ${escapeHtml(ord.delivery_driver || 'بدون سائق')}</span>
+                        <span style="font-size: 0.72rem; color: #64748b;">${ord.created_at || ''}</span>
+                    </div>
+                    <div style="font-size: 0.85rem; font-weight: 700; color: #334155;">
+                        <i class="fas fa-user"></i> ${escapeHtml(ord.customer_name || 'عميل توصيل')} 
+                        ${ord.customer_phone ? `• <a href="tel:${escapeHtml(ord.customer_phone)}" style="color: #0284c7; text-decoration: none;"><i class="fas fa-phone"></i> ${escapeHtml(ord.customer_phone)}</a>` : ''}
+                    </div>
+                    <div style="font-size: 0.78rem; color: #64748b; margin-top: 3px;">
+                        <i class="fas fa-map-marker-alt" style="color: #ef4444;"></i> ${escapeHtml(ord.customer_address || 'العنوان غير مسجل')}
+                    </div>
+                    <div style="font-size: 0.75rem; color: #475569; margin-top: 4px; background: #f1f5f9; padding: 4px 8px; border-radius: 4px;">
+                        ${itemsText}
+                    </div>
+                </div>
+
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                    <div style="font-size: 1.1rem; font-weight: 800; color: #16a34a;">
+                        ${Number(ord.total_price).toFixed(2)} ${state.settings.currency}
+                    </div>
+                    <div style="display: flex; gap: 6px;">
+                        <button type="button" class="btn-icon-text" style="padding: 6px 10px; font-size: 0.8rem;" onclick="triggerPrint(${JSON.stringify(ord).replace(/"/g, '&quot;')})" title="طباعة بون التوصيل">
+                            <i class="fas fa-print"></i> بون
+                        </button>
+                        <button type="button" class="btn-checkout" style="padding: 6px 14px; font-size: 0.82rem; background: linear-gradient(135deg, #059669, #10b981);" onclick="settleSingleDeliveryOrder('${ord.id}')">
+                            <i class="fas fa-check"></i> تقفيل وتسليم
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    list.innerHTML = html;
+}
+
+function renderSettledDeliveryOrders(settledOrders) {
+    const list = document.getElementById('hub-settled-orders-list');
+    if (!list) return;
+
+    if (settledOrders.length === 0) {
+        list.innerHTML = `<div style="text-align: center; padding: 25px; color: #94a3b8;">لم يتم تقفيل أي طلبات اليوم بعد</div>`;
+        return;
+    }
+
+    let html = '';
+    settledOrders.slice(0, 15).forEach(ord => {
+        html += `
+            <div class="hub-order-card settled">
+                <div>
+                    <span style="font-weight: 800; color: #0f172a;">طلب #${ord.id}</span>
+                    <span style="font-size: 0.75rem; color: #64748b; margin-right: 8px;">العميل: ${escapeHtml(ord.customer_name)}</span>
+                    <span style="font-size: 0.75rem; color: #059669; margin-right: 8px;"><i class="fas fa-check-circle"></i> سُلّم بواسطة: ${escapeHtml(ord.delivery_driver || '-')}</span>
+                </div>
+                <div style="font-weight: 800; color: #059669;">
+                    تم التحصيل: ${Number(ord.total_price).toFixed(2)} ${state.settings.currency}
+                </div>
+            </div>
+        `;
+    });
+
+    list.innerHTML = html;
+}
+
+function settleDriverOrders(driverName) {
+    const driverOrders = (state.deliveryOrders || []).filter(o => o.status === 'out_for_delivery' && (o.delivery_driver || 'غير محدد') === driverName);
+    if (driverOrders.length === 0) return;
+
+    const totalCash = driverOrders
+        .filter(o => (o.payment_method || 'cash') === 'cash')
+        .reduce((sum, o) => sum + Number(o.total_price || 0), 0);
+
+    if (!confirm(`هل استلمت النقدية كاملة (${totalCash.toFixed(2)} ${state.settings.currency}) من الطيار "${driverName}" وتريد تقفيل حسابه وتسوية ${driverOrders.length} طلبات؟`)) {
+        return;
+    }
+
+    const now = new Date().toLocaleTimeString('ar-SA');
+    driverOrders.forEach(o => {
+        o.status = 'settled';
+        o.settled_at = now;
+    });
+
+    saveDeliveryOrders();
+    renderDeliveryHub();
+    showToast(`🎉 تم استلام النقدية (${totalCash.toFixed(2)} ${state.settings.currency}) وتقفيل عهدة الطيار "${driverName}" بنجاح!`, 'success');
+}
+
+function settleSingleDeliveryOrder(orderId) {
+    const ord = (state.deliveryOrders || []).find(o => String(o.id) === String(orderId));
+    if (!ord) return;
+
+    ord.status = 'settled';
+    ord.settled_at = new Date().toLocaleTimeString('ar-SA');
+
+    saveDeliveryOrders();
+    renderDeliveryHub();
+    showToast(`✅ تم تقفيل وتسليم طلب التوصيل #${orderId} بنجاح!`, 'success');
+}
+
+// =============================================================================
 // 3️⃣ شؤون الموظفين ومسير الرواتب (HR & Payroll Engine)
 // =============================================================================
 function renderHR() {
@@ -2010,8 +2634,9 @@ function triggerPrint(order) {
 
     const tableServiceFee = Number(order.table_service_fee || 0);
     const cardFee = Number(order.card_fee || 0);
+    const deliveryFeeCalc = Number(order.delivery_fee || 0);
     const taxRate = Number(state.settings.taxPercent || 0);
-    const taxableBase = subtotalCalc + tableServiceFee + cardFee;
+    const taxableBase = subtotalCalc + tableServiceFee + cardFee + deliveryFeeCalc;
     const taxAmount = Number(order.tax_amount !== undefined ? order.tax_amount : (taxableBase * taxRate) / 100);
     const grandTotal = Number(order.total_price || (taxableBase + taxAmount));
     const payMethod = order.payment_method || 'cash';
@@ -2038,12 +2663,13 @@ function triggerPrint(order) {
             </div>
             <div style="text-align: center; font-size: 11px; margin-bottom: 10px;">${orderDate}</div>
             
-            ${(order.table_number || order.customer_name || order.customer_phone || order.customer_address) ? `
+            ${(order.table_number || order.customer_name || order.customer_phone || order.customer_address || order.delivery_driver) ? `
             <div class="customer-box">
                 ${order.table_number ? `<p><strong>الطاولة:</strong> ${escapeHtml(order.table_number)}</p>` : ''}
                 ${order.customer_name ? `<p><strong>العميل:</strong> ${escapeHtml(order.customer_name)}</p>` : ''}
                 ${order.customer_phone ? `<p><strong>الهاتف:</strong> ${escapeHtml(order.customer_phone)}</p>` : ''}
                 ${order.customer_address ? `<p><strong>العنوان:</strong> ${escapeHtml(order.customer_address)}</p>` : ''}
+                ${order.delivery_driver ? `<p><strong>سائق التوصيل:</strong> ${escapeHtml(order.delivery_driver)}</p>` : ''}
             </div>
             ` : ''}
             
@@ -2068,6 +2694,9 @@ function triggerPrint(order) {
                 ` : ''}
                 ${cardFee > 0 ? `
                 <div class="total-row"><span>رسوم الدفع بالبطاقة (${state.settings.cardFeePercent || 0}%):</span><span>+${cardFee.toFixed(2)}</span></div>
+                ` : ''}
+                ${deliveryFeeCalc > 0 ? `
+                <div class="total-row"><span>خدمة التوصيل (الدليفري):</span><span>+${deliveryFeeCalc.toFixed(2)}</span></div>
                 ` : ''}
                 ${taxAmount > 0 ? `<div class="total-row"><span>ضريبة مضافة (${taxRate}%):</span><span>${taxAmount.toFixed(2)}</span></div>` : ''}
                 
@@ -2313,6 +2942,7 @@ function initEventListeners() {
         state.employees.push(newEmp);
         saveEmployees();
         renderHR();
+        populateDeliveryDriversDropdown();
         closeModal('add-employee-modal');
         showToast(`تمت إضافة الموظف ${name} بنجاح!`, 'success');
         e.target.reset();
@@ -3125,6 +3755,20 @@ window.printDepartmentKitchenSlip = printDepartmentKitchenSlip;
 window.renderKitchenOrders = renderKitchenOrders;
 window.isAppInstalled = isAppInstalled;
 window.updateInstallButtonVisibility = updateInstallButtonVisibility;
+
+// دوال نظام التوصيل والدليفري وتقفيل الحسابات (Delivery & Settlement)
+window.openDeliveryDetailsModal = openDeliveryDetailsModal;
+window.saveDeliveryModalData = saveDeliveryModalData;
+window.handleCustomerPhoneInput = handleCustomerPhoneInput;
+window.handleDeliveryDriverSelect = handleDeliveryDriverSelect;
+window.setDeliveryFeeQuick = setDeliveryFeeQuick;
+window.openDeliveryHubModal = openDeliveryHubModal;
+window.switchDeliveryHubTab = switchDeliveryHubTab;
+window.renderDeliveryHub = renderDeliveryHub;
+window.settleDriverOrders = settleDriverOrders;
+window.settleSingleDeliveryOrder = settleSingleDeliveryOrder;
+window.updateDeliveryBadge = updateDeliveryBadge;
+
 
 
 
