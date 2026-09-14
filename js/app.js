@@ -30,16 +30,109 @@ const defaultApiUrl = (typeof window !== 'undefined' && window.location.protocol
     : 'https://codeart.almagd555.com/api.php';
 
 // =============================================================================
+// محرك تعدد المطاعم والعزل التخزيني (Smart Multi-Tenant Architecture)
+// =============================================================================
+function detectStoreTenant() {
+    if (typeof window === 'undefined') return 'main';
+    const params = new URLSearchParams(window.location.search);
+    let tenant = params.get('store') || params.get('restaurant') || params.get('branch') || params.get('r') || '';
+
+    // فحص إذا تم الدخول عبر نطاق فرعي مخصص (مثل syrianhouse.almagd555.com)
+    if (!tenant && window.location.hostname) {
+        const hostParts = window.location.hostname.split('.');
+        if (hostParts.length >= 3 && !['www', 'codeart', 'pos', 'localhost', '127'].includes(hostParts[0])) {
+            tenant = hostParts[0];
+        }
+    }
+
+    if (tenant) {
+        tenant = tenant.trim().toLowerCase().replace(/[^\w\u0600-\u06FF\-]/g, '_');
+        try {
+            localStorage.setItem('codeart_pos_active_tenant', tenant);
+            addRecentStore(tenant);
+        } catch (e) {}
+        return tenant;
+    }
+
+    try {
+        tenant = localStorage.getItem('codeart_pos_active_tenant') || 'main';
+    } catch (e) {
+        tenant = 'main';
+    }
+    return tenant;
+}
+
+function addRecentStore(storeSlug) {
+    if (!storeSlug || storeSlug === 'main') return;
+    try {
+        let recents = JSON.parse(localStorage.getItem('codeart_pos_recent_stores') || '[]');
+        if (!recents.includes(storeSlug)) {
+            recents.unshift(storeSlug);
+            recents = recents.slice(0, 10);
+            localStorage.setItem('codeart_pos_recent_stores', JSON.stringify(recents));
+        }
+    } catch (e) {}
+}
+
+function getRecentStores() {
+    try {
+        return JSON.parse(localStorage.getItem('codeart_pos_recent_stores') || '[]');
+    } catch (e) {
+        return [];
+    }
+}
+
+const currentTenantId = detectStoreTenant();
+
+// دوال إدارة التخزين المعزول لكل مطعم (Isolated Storage Engine)
+function getTenantKey(baseKey) {
+    const t = (typeof state !== 'undefined' && state && state.tenantId) ? state.tenantId : currentTenantId;
+    return `${baseKey}_${t}`;
+}
+
+function getTenantStorage(baseKey) {
+    const tKey = getTenantKey(baseKey);
+    try {
+        const val = localStorage.getItem(tKey);
+        if (val !== null) return val;
+        // توافق رجعي: إذا كان المطعم 'main' ولم تُحفظ بياناته بالمفتاح الجديد بعد، يتم جلب المفتاح القديم وترقيته تلقائياً
+        const activeT = (typeof state !== 'undefined' && state && state.tenantId) ? state.tenantId : currentTenantId;
+        if (activeT === 'main') {
+            const oldVal = localStorage.getItem(baseKey);
+            if (oldVal !== null) {
+                localStorage.setItem(tKey, oldVal);
+                return oldVal;
+            }
+        }
+    } catch (e) {}
+    return null;
+}
+
+function setTenantStorage(baseKey, val) {
+    try {
+        localStorage.setItem(getTenantKey(baseKey), val);
+    } catch (e) {}
+}
+
+function removeTenantStorage(baseKey) {
+    try {
+        localStorage.removeItem(getTenantKey(baseKey));
+    } catch (e) {}
+}
+
+// =============================================================================
 // الحالة العامة للنظام (Application State)
 // =============================================================================
 const state = {
+    tenantId: currentTenantId,
     currentView: 'pos',
     settings: {
         apiUrl: defaultApiUrl,
-        user: 'al-madina',
-        token: '8d7b85eba56b8091c674de6b262c4ffe',
-        storeName: 'مطعم المدينة',
-        phone: '0501234567',
+        user: (DEMO_PRESETS[currentTenantId] ? DEMO_PRESETS[currentTenantId].user : currentTenantId),
+        token: (DEMO_PRESETS[currentTenantId] ? DEMO_PRESETS[currentTenantId].token : '8d7b85eba56b8091c674de6b262c4ffe'),
+        storeSlug: currentTenantId,
+        storeName: (DEMO_PRESETS[currentTenantId] ? DEMO_PRESETS[currentTenantId].storeName : (currentTenantId !== 'main' ? `مطعم ${currentTenantId.replace(/[_-]/g, ' ')}` : 'مطعم المدينة')),
+        phone: (DEMO_PRESETS[currentTenantId] ? DEMO_PRESETS[currentTenantId].phone : '0501234567'),
         storeAddress: 'حلب-الصاخور-سوق الخضرامن الطرف القبلي اول شارع المكاتب من فوق',
         currency: 'ر.س',
         taxPercent: 15,
@@ -184,11 +277,12 @@ function switchView(viewName) {
 }
 
 // =============================================================================
-// إدارة البيانات المحلية (Local Storage Persistence for ERP)
+// =============================================================================
+// إدارة البيانات المحلية المعزولة لكل مطعم (Isolated ERP Persistence per Store)
 // =============================================================================
 function loadERPData() {
     // 1. الطاولات
-    const savedTables = localStorage.getItem('codeart_pos_tables');
+    const savedTables = getTenantStorage('codeart_pos_tables');
     if (savedTables) {
         try { state.tables = JSON.parse(savedTables); } catch(e) {}
     }
@@ -217,7 +311,7 @@ function loadERPData() {
     }
 
     // 2. الموظفون
-    const savedEmployees = localStorage.getItem('codeart_pos_employees');
+    const savedEmployees = getTenantStorage('codeart_pos_employees');
     if (savedEmployees) {
         try { state.employees = JSON.parse(savedEmployees); } catch(e) {}
     }
@@ -226,19 +320,19 @@ function loadERPData() {
             { id: 1, name: 'أحمد محمود حسن', role: 'شيف رئيسي', phone: '0501122334', salary: 4500, salaryType: 'شهري', hireDate: '2025-01-10' },
             { id: 2, name: 'سامر خالد العلي', role: 'كاشير', phone: '0559988776', salary: 3200, salaryType: 'شهري', hireDate: '2025-03-01' },
             { id: 3, name: 'محمود عبد الله', role: 'ويتر (مقدم طعام)', phone: '0543322110', salary: 2800, salaryType: 'شهري', hireDate: '2025-05-15' },
-            { id: 4, name: 'كريم يوسف', role: 'عامل توصيل (ديليفري)', phone: '0567788990', salary: 2600, salaryType: 'شهري', hireDate: '2025-06-20' }
+            { id: 4, name: 'كريم يوسف', role: 'طيار توصيل (سائق دليفري)', phone: '0567788990', salary: 2600, salaryType: 'شهري', hireDate: '2025-06-20' }
         ];
         saveEmployees();
     }
 
     // 3. سجل مسير الرواتب
-    const savedPayroll = localStorage.getItem('codeart_pos_payroll');
+    const savedPayroll = getTenantStorage('codeart_pos_payroll');
     if (savedPayroll) {
         try { state.payroll = JSON.parse(savedPayroll); } catch(e) {}
     }
 
     // 4. المصاريف
-    const savedExpenses = localStorage.getItem('codeart_pos_expenses');
+    const savedExpenses = getTenantStorage('codeart_pos_expenses');
     if (savedExpenses) {
         try { state.expenses = JSON.parse(savedExpenses); } catch(e) {}
     }
@@ -251,20 +345,20 @@ function loadERPData() {
     }
 
     // 5. سجل الفواتير والمبيعات
-    const savedOrders = localStorage.getItem('codeart_pos_orders_history');
+    const savedOrders = getTenantStorage('codeart_pos_orders_history');
     if (savedOrders) {
         try { state.ordersHistory = JSON.parse(savedOrders); } catch(e) {}
     }
 
     // 6. سجل طلبات أقسام المطبخ (KDS)
-    const savedKitchen = localStorage.getItem('codeart_pos_kitchen_orders');
+    const savedKitchen = getTenantStorage('codeart_pos_kitchen_orders');
     if (savedKitchen) {
         try { state.kitchenOrders = JSON.parse(savedKitchen); } catch(e) {}
     }
     if (!state.kitchenOrders) state.kitchenOrders = [];
 
     // 7. سجل عملاء التوصيل (CRM Customers Database)
-    const savedCustomers = localStorage.getItem('codeart_pos_customers');
+    const savedCustomers = getTenantStorage('codeart_pos_customers');
     if (savedCustomers) {
         try { state.customers = JSON.parse(savedCustomers); } catch(e) {}
     }
@@ -278,7 +372,7 @@ function loadERPData() {
     }
 
     // 8. سجل طلبات التوصيل وتقفيل الدليفري (Delivery Orders Hub)
-    const savedDeliveryOrders = localStorage.getItem('codeart_pos_delivery_orders');
+    const savedDeliveryOrders = getTenantStorage('codeart_pos_delivery_orders');
     if (savedDeliveryOrders) {
         try { state.deliveryOrders = JSON.parse(savedDeliveryOrders); } catch(e) {}
     }
@@ -316,8 +410,8 @@ function loadERPData() {
         saveDeliveryOrders();
     }
 
-    // 7. ذاكرة المنيو المحلي (Offline-First Menu Cache)
-    const cachedMenu = localStorage.getItem('codeart_pos_menu_cache');
+    // 9. ذاكرة المنيو المحلي (Offline-First Menu Cache)
+    const cachedMenu = getTenantStorage('codeart_pos_menu_cache');
     if (cachedMenu) {
         try {
             const parsed = JSON.parse(cachedMenu);
@@ -352,21 +446,21 @@ function loadERPData() {
         saveMenuData();
     }
 
-    // 7. قائمة الطلبات المعلقة للإرسال عند عودة النت (Offline Queue)
-    const savedQueue = localStorage.getItem('codeart_pos_offline_queue');
+    // 10. قائمة الطلبات المعلقة للإرسال عند عودة النت (Offline Queue)
+    const savedQueue = getTenantStorage('codeart_pos_offline_queue');
     if (savedQueue) {
         try { state.offlineOrdersQueue = JSON.parse(savedQueue); } catch(e) {}
     }
 }
 
-function saveTables() { localStorage.setItem('codeart_pos_tables', JSON.stringify(state.tables)); }
-function saveEmployees() { localStorage.setItem('codeart_pos_employees', JSON.stringify(state.employees)); }
-function savePayroll() { localStorage.setItem('codeart_pos_payroll', JSON.stringify(state.payroll)); }
-function saveExpenses() { localStorage.setItem('codeart_pos_expenses', JSON.stringify(state.expenses)); }
-function saveOfflineQueue() { localStorage.setItem('codeart_pos_offline_queue', JSON.stringify(state.offlineOrdersQueue || [])); }
-function saveOrdersHistory() { localStorage.setItem('codeart_pos_orders_history', JSON.stringify(state.ordersHistory)); }
+function saveTables() { setTenantStorage('codeart_pos_tables', JSON.stringify(state.tables)); }
+function saveEmployees() { setTenantStorage('codeart_pos_employees', JSON.stringify(state.employees)); }
+function savePayroll() { setTenantStorage('codeart_pos_payroll', JSON.stringify(state.payroll)); }
+function saveExpenses() { setTenantStorage('codeart_pos_expenses', JSON.stringify(state.expenses)); }
+function saveOfflineQueue() { setTenantStorage('codeart_pos_offline_queue', JSON.stringify(state.offlineOrdersQueue || [])); }
+function saveOrdersHistory() { setTenantStorage('codeart_pos_orders_history', JSON.stringify(state.ordersHistory)); }
 function saveMenuData() {
-    localStorage.setItem('codeart_pos_menu_cache', JSON.stringify({
+    setTenantStorage('codeart_pos_menu_cache', JSON.stringify({
         categories: state.categories,
         items: state.items
     }));
@@ -381,19 +475,49 @@ function saveMenuData() {
 // إعدادات الربط والمنيو
 // =============================================================================
 function loadSettingsFromStorage() {
-    const saved = localStorage.getItem('codeart_pos_settings');
+    const saved = getTenantStorage('codeart_pos_settings');
     if (saved) {
         try { state.settings = { ...state.settings, ...JSON.parse(saved) }; } catch (e) {}
+    } else {
+        // إذا كان مطعماً جديداً
+        if (DEMO_PRESETS[state.tenantId]) {
+            const p = DEMO_PRESETS[state.tenantId];
+            state.settings.user = p.user;
+            state.settings.token = p.token;
+            state.settings.storeName = p.storeName;
+            state.settings.phone = p.phone;
+        } else if (state.tenantId !== 'main') {
+            state.settings.user = state.tenantId;
+            state.settings.storeSlug = state.tenantId;
+            state.settings.storeName = `مطعم ${state.tenantId.replace(/[_-]/g, ' ')}`;
+        }
+        saveSettingsToStorage();
     }
     applySettingsToDOM();
 }
 
 function saveSettingsToStorage() {
-    localStorage.setItem('codeart_pos_settings', JSON.stringify(state.settings));
+    setTenantStorage('codeart_pos_settings', JSON.stringify(state.settings));
 }
 
 function applySettingsToDOM() {
-    document.getElementById('brand-store-name').textContent = state.settings.storeName || 'كاشير المطعم';
+    const storeTitle = state.settings.storeName || 'كاشير المطعم';
+    document.getElementById('brand-store-name').textContent = storeTitle;
+
+    const headerTenantSlug = document.getElementById('header-tenant-slug');
+    if (headerTenantSlug) headerTenantSlug.textContent = state.tenantId || 'main';
+
+    const directLinkInput = document.getElementById('store-direct-link-input');
+    if (directLinkInput) directLinkInput.value = getStoreShareUrl();
+
+    const slugInput = document.getElementById('setting-store-slug');
+    if (slugInput) slugInput.value = state.settings.storeSlug || state.tenantId || 'main';
+
+    const modalCurStore = document.getElementById('switch-modal-current-store');
+    if (modalCurStore) modalCurStore.textContent = `${storeTitle} (${state.tenantId})`;
+
+    renderRecentStoresList();
+
     document.getElementById('input-api-url').value = state.settings.apiUrl || '';
     document.getElementById('input-username').value = state.settings.user || '';
     document.getElementById('input-token').value = state.settings.token || '';
@@ -414,6 +538,120 @@ function applySettingsToDOM() {
     document.getElementById('check-auto-print').checked = state.settings.autoPrint;
     document.getElementById('check-sound-alert').checked = state.settings.soundAlert;
     document.getElementById('input-receipt-footer').value = state.settings.receiptFooter || '';
+}
+
+// دوال إدارة مشاركة الرابط المخصص والتبديل
+function getStoreShareUrl() {
+    const slug = (state.settings && state.settings.storeSlug) ? state.settings.storeSlug : (state.tenantId || 'main');
+    if (typeof window === 'undefined') return `?store=${slug}`;
+    const url = new URL(window.location.href);
+    url.search = '';
+    url.hash = '';
+    url.searchParams.set('store', slug);
+    return url.toString();
+}
+
+function copyStoreShareLink() {
+    const link = getStoreShareUrl();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(() => {
+            showToast('📋 تم نسخ رابط الكاشير المخصص للمطعم بنجاح!', 'success');
+        }).catch(() => fallbackCopy(link));
+    } else {
+        fallbackCopy(link);
+    }
+}
+
+function fallbackCopy(text) {
+    const temp = document.createElement('input');
+    temp.value = text;
+    document.body.appendChild(temp);
+    temp.select();
+    document.execCommand('copy');
+    document.body.removeChild(temp);
+    showToast('📋 تم نسخ رابط الكاشير المخصص للمطعم بنجاح!', 'success');
+}
+
+function shareStoreWhatsApp() {
+    const link = getStoreShareUrl();
+    const name = state.settings.storeName || 'كاشير المطعم';
+    const text = `مرحباً، هذا هو رابط الدخول المباشر لنظام كاشير ${name}:\n${link}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+}
+
+function switchRestaurantStore(slug) {
+    if (!slug) return;
+    const clean = slug.trim().toLowerCase().replace(/[^\w\u0600-\u06FF\-]/g, '_');
+    if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.search = '';
+        url.hash = '';
+        url.searchParams.set('store', clean);
+        window.location.href = url.toString();
+    }
+}
+
+function handleConfirmSwitchStore() {
+    const input = document.getElementById('input-switch-store-slug');
+    if (!input || !input.value.trim()) {
+        showToast('يرجى كتابة اسم أو معرّف المطعم أولاً', 'warning');
+        return;
+    }
+    const slug = input.value.trim();
+    switchRestaurantStore(slug);
+}
+
+function saveStoreSlugChange() {
+    const input = document.getElementById('setting-store-slug');
+    if (!input || !input.value.trim()) return;
+    const newSlug = input.value.trim().toLowerCase().replace(/[^\w\u0600-\u06FF\-]/g, '_');
+
+    if (newSlug === state.tenantId) {
+        showToast('هذا هو المعرّف النشط حالياً بالفعل', 'info');
+        return;
+    }
+
+    if (!confirm(`هل تريد تغيير معرّف رابط المطعم من "${state.tenantId}" إلى "${newSlug}" والانتقال إليه؟`)) {
+        return;
+    }
+
+    // نقل وتكرار بيانات المطعم الحالي للمعرّف الجديد
+    const keys = [
+        'codeart_pos_settings', 'codeart_pos_tables', 'codeart_pos_employees',
+        'codeart_pos_payroll', 'codeart_pos_expenses', 'codeart_pos_orders_history',
+        'codeart_pos_menu_cache', 'codeart_pos_kitchen_orders', 'codeart_pos_customers',
+        'codeart_pos_delivery_orders'
+    ];
+
+    keys.forEach(k => {
+        const val = localStorage.getItem(`${k}_${state.tenantId}`);
+        if (val !== null) {
+            localStorage.setItem(`${k}_${newSlug}`, val);
+        }
+    });
+
+    state.settings.storeSlug = newSlug;
+    saveSettingsToStorage();
+    switchRestaurantStore(newSlug);
+}
+
+function renderRecentStoresList() {
+    const container = document.getElementById('recent-stores-list');
+    if (!container) return;
+    const recents = getRecentStores();
+    if (!recents || recents.length === 0) {
+        container.innerHTML = '<span style="color: #94a3b8; font-size: 0.78rem;">لا توجد مطاعم أخرى مسجلة مؤخراً</span>';
+        return;
+    }
+
+    container.innerHTML = recents.map(slug => {
+        const isCurrent = slug === state.tenantId;
+        return `
+            <button type="button" class="btn-icon-text" style="font-size: 0.78rem; padding: 4px 10px; ${isCurrent ? 'border-color: #0284c7; background: #e0f2fe; color: #0369a1; font-weight: 800;' : ''}" onclick="switchRestaurantStore('${slug}')">
+                <i class="fas fa-store"></i> ${escapeHtml(slug)} ${isCurrent ? ' (الحالي)' : ''}
+            </button>
+        `;
+    }).join('');
 }
 
 function applyDemoPreset(key) {
@@ -484,7 +722,7 @@ async function syncMenuData() {
             renderItems();
 
             // حفظ نسخة احتياطية محلية للعمل الدائم بدون إنترنت
-            localStorage.setItem('codeart_pos_menu_cache', JSON.stringify({
+            setTenantStorage('codeart_pos_menu_cache', JSON.stringify({
                 categories: state.categories,
                 items: state.items
             }));
@@ -1625,7 +1863,7 @@ function getItemDepartment(item) {
 }
 
 function saveKitchenOrders() {
-    localStorage.setItem('codeart_pos_kitchen_orders', JSON.stringify(state.kitchenOrders || []));
+    setTenantStorage('codeart_pos_kitchen_orders', JSON.stringify(state.kitchenOrders || []));
     updateKitchenBadge();
 }
 
@@ -1909,13 +2147,13 @@ function printDepartmentKitchenSlip(orderId, departmentKey) {
 
 function saveCustomers() {
     try {
-        localStorage.setItem('codeart_pos_customers', JSON.stringify(state.customers || []));
+        setTenantStorage('codeart_pos_customers', JSON.stringify(state.customers || []));
     } catch(e) {}
 }
 
 function saveDeliveryOrders() {
     try {
-        localStorage.setItem('codeart_pos_delivery_orders', JSON.stringify(state.deliveryOrders || []));
+        setTenantStorage('codeart_pos_delivery_orders', JSON.stringify(state.deliveryOrders || []));
     } catch(e) {}
 }
 
@@ -3920,13 +4158,16 @@ function resetSystemDataConfirm() {
     if (!confirm('تحذير: هل أنت متأكد من رغبتك في إعادة ضبط بيانات النظام إلى الإعدادات الأولية؟ ستفقد التعديلات غير المحفوظة.')) {
         return;
     }
-    localStorage.removeItem('codeart_pos_settings');
-    localStorage.removeItem('codeart_pos_tables');
-    localStorage.removeItem('codeart_pos_employees');
-    localStorage.removeItem('codeart_pos_payroll');
-    localStorage.removeItem('codeart_pos_expenses');
-    localStorage.removeItem('codeart_pos_orders_history');
-    localStorage.removeItem('codeart_pos_menu_cache');
+    removeTenantStorage('codeart_pos_settings');
+    removeTenantStorage('codeart_pos_tables');
+    removeTenantStorage('codeart_pos_employees');
+    removeTenantStorage('codeart_pos_payroll');
+    removeTenantStorage('codeart_pos_expenses');
+    removeTenantStorage('codeart_pos_orders_history');
+    removeTenantStorage('codeart_pos_menu_cache');
+    removeTenantStorage('codeart_pos_kitchen_orders');
+    removeTenantStorage('codeart_pos_customers');
+    removeTenantStorage('codeart_pos_delivery_orders');
     location.reload();
 }
 
@@ -4110,3 +4351,12 @@ window.handleTamEditTable = handleTamEditTable;
 window.handleTamDeleteTable = handleTamDeleteTable;
 window.transferTable = transferTable;
 window.openEditTableModal = openEditTableModal;
+
+// دوال إدارة وتخصيص روابط المطاعم المتعددة (Multi-Store & Tenant URLs)
+window.copyStoreShareLink = copyStoreShareLink;
+window.shareStoreWhatsApp = shareStoreWhatsApp;
+window.switchRestaurantStore = switchRestaurantStore;
+window.handleConfirmSwitchStore = handleConfirmSwitchStore;
+window.saveStoreSlugChange = saveStoreSlugChange;
+window.renderRecentStoresList = renderRecentStoresList;
+window.getStoreShareUrl = getStoreShareUrl;

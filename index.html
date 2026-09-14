@@ -18,7 +18,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <!-- ملف الأنماط والتنسيق -->
-    <link rel="stylesheet" href="css/style.css?v=3.9">
+    <link rel="stylesheet" href="css/style.css?v=4.0">
 </head>
 <body>
 
@@ -30,7 +30,14 @@
                 <i class="fas fa-utensils"></i>
             </div>
             <div class="brand-info">
-                <h1 id="brand-store-name">كاشير المطعم السحابي</h1>
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <h1 id="brand-store-name" style="margin: 0;">كاشير المطعم السحابي</h1>
+                    <span id="header-store-badge" class="store-tenant-pill" onclick="openModal('store-switch-modal')" title="المطعم النشط حالياً - اضغط للتبديل أو إضافة مطعم">
+                        <i class="fas fa-store-alt"></i>
+                        <span id="header-tenant-slug">main</span>
+                        <i class="fas fa-chevron-down" style="font-size: 0.62rem; opacity: 0.7;"></i>
+                    </span>
+                </div>
                 <div id="connection-badge" class="api-status-badge" onclick="openModal('settings-modal')" title="اضغط لضبط الربط بالسيرفر">
                     <span class="status-dot"></span>
                     <span id="connection-text">جاري فحص الاتصال...</span>
@@ -793,6 +800,46 @@
                         <i class="fas fa-save"></i>
                         <span>حفظ كل التغييرات</span>
                     </button>
+                </div>
+            </div>
+
+            <!-- بطاقة رابط الكاشير المخصص للمطعم (Dedicated Restaurant Direct Link) -->
+            <div class="store-share-card">
+                <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div style="width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 1.35rem; box-shadow: 0 4px 10px rgba(2, 132, 199, 0.25);">
+                            <i class="fas fa-link"></i>
+                        </div>
+                        <div>
+                            <h4 style="margin: 0; font-size: 1.05rem; font-weight: 800; color: #0f172a;">رابط الكاشير المخصص لهذا المطعم (Direct Store Link)</h4>
+                            <p style="margin: 2px 0 0; font-size: 0.8rem; color: #475569;">شارك هذا الرابط مع كاشير أو موظفي المطعم لفتح النظام فورياً ببيانات ومنيو هذا المطعم</p>
+                        </div>
+                    </div>
+                    <button type="button" class="btn-icon-text" style="padding: 7px 12px; font-size: 0.82rem; background: #fff;" onclick="openModal('store-switch-modal')">
+                        <i class="fas fa-exchange-alt"></i> تبديل المطعم / فتح فرع آخر
+                    </button>
+                </div>
+
+                <!-- حقل الرابط المباشر وأزرار النسخ والمشاركة -->
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; background: #fff; border: 1px solid #cbd5e1; border-radius: 10px; padding: 6px 10px; margin-bottom: 10px;">
+                    <i class="fas fa-globe" style="color: #0284c7;"></i>
+                    <input type="text" id="store-direct-link-input" readonly class="form-control ltr-input" style="flex: 1; min-width: 220px; border: none; background: transparent; font-weight: 700; color: #0284c7; font-size: 0.88rem;" value="">
+                    <button type="button" class="btn-checkout" style="flex: initial; padding: 7px 14px; font-size: 0.82rem; background: linear-gradient(135deg, #0284c7, #0369a1);" onclick="copyStoreShareLink()">
+                        <i class="fas fa-copy"></i> نسخ الرابط
+                    </button>
+                    <button type="button" class="btn-checkout" style="flex: initial; padding: 7px 14px; font-size: 0.82rem; background: linear-gradient(135deg, #16a34a, #15803d);" onclick="shareStoreWhatsApp()">
+                        <i class="fab fa-whatsapp"></i> واتساب
+                    </button>
+                </div>
+
+                <!-- تخصيص معرّف المطعم في الرابط -->
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 0.82rem; color: #334155; flex-wrap: wrap;">
+                    <span style="font-weight: 700;"><i class="fas fa-tag"></i> معرّف الرابط (Slug):</span>
+                    <input type="text" id="setting-store-slug" class="form-control ltr-input" style="width: 170px; padding: 5px 10px; font-size: 0.82rem; font-weight: 700;" placeholder="مثال: syrian_house">
+                    <button type="button" class="btn-icon-text" style="padding: 5px 12px; font-size: 0.8rem; background: #fff;" onclick="saveStoreSlugChange()">
+                        <i class="fas fa-save"></i> حفظ وتغيير المعرّف
+                    </button>
+                    <span style="font-size: 0.74rem; color: #64748b;">(أحرف إنجليزية وأرقام وشرطة فقط)</span>
                 </div>
             </div>
 
@@ -1800,6 +1847,50 @@
     </div>
 </div>
 
+<!-- نافذة التبديل بين المطاعم وإضافة مطعم جديد (Multi-Store Switcher) -->
+<div class="modal-overlay" id="store-switch-modal">
+    <div class="modal-card" style="max-width: 480px; width: 95vw;">
+        <div class="modal-header">
+            <h3><i class="fas fa-store-alt" style="color: var(--primary);"></i> نظام إدارة المطاعم المتعددة</h3>
+            <button class="modal-close-btn" onclick="closeModal('store-switch-modal')">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 16px;">
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 12px; margin-bottom: 14px; font-size: 0.85rem; color: #166534;">
+                <div style="font-weight: 800; margin-bottom: 2px;"><i class="fas fa-check-circle"></i> المطعم الحالي: <span id="switch-modal-current-store" style="color: #0f172a;">-</span></div>
+                <div style="font-size: 0.78rem; color: #15803d;">كل مطعم له رابط مخصص وقاعدة بيانات معزولة تماماً للأصناف، الطاولات، والمبيعات.</div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 14px;">
+                <label style="font-weight: 700; font-size: 0.88rem; display: block; margin-bottom: 6px;">
+                    اسم أو معرّف المطعم المراد فتحه (Store ID / Slug):
+                </label>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="input-switch-store-slug" class="form-control ltr-input" placeholder="مثال: syrian_house أو pizza_hut">
+                    <button type="button" class="btn-checkout" style="flex: initial; padding: 8px 16px; font-size: 0.85rem;" onclick="handleConfirmSwitchStore()">
+                        <i class="fas fa-sign-in-alt"></i> فتح المطعم
+                    </button>
+                </div>
+                <small style="color: #64748b; font-size: 0.75rem; margin-top: 4px; display: block;">
+                    إذا كان المطعم مسجلاً مسبقاً سيتم فتح بياناته، وإذا كان اسماً جديداً سيتم إنشاء مساحة كاشير فارغة ومستقلة له فوراً.
+                </small>
+            </div>
+
+            <!-- قائمة المطاعم السابقة التي فُتحت على هذا الجهاز -->
+            <div id="recent-stores-container" style="margin-top: 14px; border-top: 1px dashed var(--border-color); padding-top: 12px;">
+                <label style="font-weight: 700; font-size: 0.82rem; color: #475569; display: block; margin-bottom: 8px;">
+                    <i class="fas fa-history"></i> المطاعم التي تم استخدامها مؤخراً على هذا الجهاز:
+                </label>
+                <div id="recent-stores-list" style="display: flex; flex-wrap: wrap; gap: 6px;">
+                    <!-- يتم توليدها ديناميكياً -->
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-icon-text" onclick="closeModal('store-switch-modal')">إلغاء</button>
+        </div>
+    </div>
+</div>
+
 <!-- نافذة إضافة وتعديل صنف في المنيو -->
 <div class="modal-overlay" id="item-edit-modal">
     <div class="modal-card" style="max-width: 540px;">
@@ -1918,7 +2009,7 @@
 </div>
 
 <!-- ملف الجافاسكريبت الرئيسي المطور -->
-<script src="js/app.js?v=3.9"></script>
+<script src="js/app.js?v=4.0"></script>
 
 <!-- تسجيل الـ Service Worker لتشغيل PWA -->
 <script>

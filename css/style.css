@@ -3225,3 +3225,40 @@ body.standalone-app .btn-install-pwa {
   }
 }
 
+/* ==========================================================================
+   نظام تعدد المطاعم والروابط المخصصة (Multi-Tenant & Dedicated URL)
+   ========================================================================== */
+.store-tenant-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #0369a1;
+  font-size: 0.76rem;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  margin-top: 2px;
+}
+
+.store-tenant-pill:hover {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0284c7;
+  transform: translateY(-1px);
+}
+
+.store-share-card {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 1px solid #bae6fd;
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 14px rgba(2, 132, 199, 0.08);
+}
+
+
