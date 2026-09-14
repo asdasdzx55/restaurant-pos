@@ -85,6 +85,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadSettingsFromStorage();
     loadERPData();
     initEventListeners();
+    setOrderType(state.orderType || 'dinein');
     updateUIConnectionStatus(false, 'جاري فحص الاتصال...');
 
     // بدء المزامنة والاستماع للطلبات
@@ -655,6 +656,46 @@ function saveCartItemNote() {
     activeNoteCartItemId = null;
 }
 
+// تبديل وتحديد نوع الطلب (صالة / سفري / توصيل) وإخفاء/إظهار زر حفظ بالطاولة
+function setOrderType(type) {
+    state.orderType = type || 'dinein';
+
+    // تحديث أزرار نوع الطلب
+    document.querySelectorAll('.type-tab').forEach(tab => {
+        if (tab.dataset.type === state.orderType) {
+            tab.classList.add('active');
+        } else {
+            tab.classList.remove('active');
+        }
+    });
+
+    const tableWrap = document.getElementById('table-input-wrapper');
+    const deliveryWrap = document.getElementById('delivery-inputs-wrapper');
+    const btnSaveTable = document.getElementById('btn-save-table');
+
+    if (state.orderType === 'dinein') {
+        if (tableWrap) tableWrap.style.display = 'flex';
+        if (deliveryWrap) deliveryWrap.style.display = 'none';
+        if (btnSaveTable) {
+            btnSaveTable.style.display = 'inline-flex';
+            btnSaveTable.disabled = (state.cart.length === 0);
+        }
+    } else if (state.orderType === 'delivery') {
+        if (tableWrap) tableWrap.style.display = 'none';
+        if (deliveryWrap) deliveryWrap.style.display = 'flex';
+        if (btnSaveTable) btnSaveTable.style.display = 'none';
+    } else {
+        // takeaway (سفري / تكاوي)
+        if (tableWrap) tableWrap.style.display = 'none';
+        if (deliveryWrap) deliveryWrap.style.display = 'none';
+        if (btnSaveTable) btnSaveTable.style.display = 'none';
+    }
+
+    // تحديث الحسابات الخاصة بالضريبة ورسوم الصالة
+    const subtotal = state.cart.reduce((sum, it) => sum + (it.price * it.quantity), 0);
+    updateTotals(subtotal);
+}
+
 function renderCart() {
     const container = document.getElementById('cart-items-list');
     const emptyState = document.getElementById('empty-cart-state');
@@ -666,18 +707,26 @@ function renderCart() {
         clearTableBtn.style.display = state.activeTableId ? 'inline-flex' : 'none';
     }
 
+    // زر الحفظ بالطاولة يظهر فقط للطلبات داخل الصالة (طاولة) ويختفي تماماً في التكاوي والتوصيل
+    if (btnSaveTable) {
+        if (state.orderType === 'dinein') {
+            btnSaveTable.style.display = 'inline-flex';
+            btnSaveTable.disabled = (state.cart.length === 0);
+        } else {
+            btnSaveTable.style.display = 'none';
+        }
+    }
+
     if (state.cart.length === 0) {
         container.innerHTML = '';
         emptyState.style.display = 'flex';
         btnCheckout.disabled = true;
-        if (btnSaveTable) btnSaveTable.disabled = true;
         updateTotals(0);
         return;
     }
 
     emptyState.style.display = 'none';
     btnCheckout.disabled = false;
-    if (btnSaveTable) btnSaveTable.disabled = false;
     container.innerHTML = '';
     let subtotal = 0;
 
@@ -1118,7 +1167,7 @@ function openTableInPOS(tableId) {
     if (!table) return;
 
     state.activeTableId = table.id;
-    state.orderType = 'dinein';
+    setOrderType('dinein');
     document.getElementById('table-num-input').value = table.name;
 
     // استرجاع الأصناف إن وجدت
@@ -1867,27 +1916,10 @@ function initEventListeners() {
         renderItems();
     });
 
-    // تبديل نوع الطلب في شاشة POS
+    // تبديل نوع الطلب في شاشة POS (صالة / سفري / توصيل)
     document.querySelectorAll('.type-tab').forEach(tab => {
         tab.addEventListener('click', () => {
-            document.querySelectorAll('.type-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            state.orderType = tab.dataset.type;
-            const tableWrap = document.getElementById('table-input-wrapper');
-            const deliveryWrap = document.getElementById('delivery-inputs-wrapper');
-            if (state.orderType === 'dinein') {
-                tableWrap.style.display = 'flex';
-                deliveryWrap.style.display = 'none';
-            } else if (state.orderType === 'delivery') {
-                tableWrap.style.display = 'none';
-                deliveryWrap.style.display = 'flex';
-            } else {
-                tableWrap.style.display = 'none';
-                deliveryWrap.style.display = 'none';
-            }
-            // إعادة حساب الرسوم بحسب نوع الطلب المختار (صالة = رسوم طاولة)
-            const subtotal = state.cart.reduce((sum, it) => sum + (it.price * it.quantity), 0);
-            updateTotals(subtotal);
+            setOrderType(tab.dataset.type);
         });
     });
 
@@ -2703,6 +2735,7 @@ window.addEventListener('resize', () => {
 
 // إتاحة الدوال الجديدة للنطاق العام (Global Scope)
 window.setPaymentMethod = setPaymentMethod;
+window.setOrderType = setOrderType;
 window.toggleMobileCart = toggleMobileCart;
 window.toggleMobileMoreMenu = toggleMobileMoreMenu;
 window.filterTablesByZone = filterTablesByZone;

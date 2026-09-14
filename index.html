@@ -18,7 +18,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <!-- ملف الأنماط والتنسيق -->
-    <link rel="stylesheet" href="css/style.css?v=3.5">
+    <link rel="stylesheet" href="css/style.css?v=3.6">
 </head>
 <body>
 
@@ -92,6 +92,12 @@
             <button class="btn-icon-text active-indicator" onclick="openModal('incoming-orders-modal')" title="طلبات المنيو الأونلاين">
                 <i class="fas fa-receipt"></i>
                 <span id="pending-orders-badge" class="badge-count" style="display: none;">0</span>
+            </button>
+
+            <!-- زر قائمة همبرجر والمزيد (متاح لجميع الأجهزة) -->
+            <button type="button" class="btn-icon-text" id="btn-header-more" onclick="toggleMobileMoreMenu(true)" title="قائمة الخدمات والأنظمة (المزيد ☰)">
+                <i class="fas fa-bars"></i>
+                <span class="desktop-only" style="font-size: 0.8rem; font-weight: 700; margin-right: 4px;">المزيد</span>
             </button>
         </div>
     </header>
@@ -1499,7 +1505,7 @@
 </div>
 
 <!-- ملف الجافاسكريبت الرئيسي المطور -->
-<script src="js/app.js?v=3.5"></script>
+<script src="js/app.js?v=3.6"></script>
 
 <!-- تسجيل الـ Service Worker لتشغيل PWA -->
 <script>
