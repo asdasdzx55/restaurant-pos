@@ -18,7 +18,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <!-- ملف الأنماط والتنسيق -->
-    <link rel="stylesheet" href="css/style.css?v=3.3">
+    <link rel="stylesheet" href="css/style.css?v=3.4">
 </head>
 <body>
 
@@ -38,53 +38,53 @@
             </div>
         </div>
 
-        <!-- شريط التبويبات الرئيسي (أيقونات مدمجة لتوفير المساحة) -->
+        <!-- شريط التبويبات الرئيسي (أيقونات ونص واضح ومتناسق للشاشات واللابتوب) -->
         <nav class="main-nav-tabs">
             <button class="nav-tab-btn active" id="tab-btn-pos" onclick="switchView('pos')" title="الكاشير ونقطة البيع">
                 <i class="fas fa-cash-register"></i>
-                <span class="nav-tooltip">الكاشير (POS)</span>
+                <span class="nav-btn-text">الكاشير</span>
             </button>
             <button class="nav-tab-btn" id="tab-btn-tables" onclick="switchView('tables')" title="خريطة وإدارة الطاولات">
                 <i class="fas fa-chair"></i>
-                <span class="nav-tooltip">الطاولات</span>
+                <span class="nav-btn-text">الطاولات</span>
             </button>
             <button class="nav-tab-btn" id="tab-btn-items" onclick="switchView('items')" title="إدارة قائمة الطعام والأصناف">
                 <i class="fas fa-utensils"></i>
-                <span class="nav-tooltip">الأصناف والمنيو</span>
+                <span class="nav-btn-text">الأصناف</span>
             </button>
             <button class="nav-tab-btn" id="tab-btn-hr" onclick="switchView('hr')" title="شؤون الموظفين والرواتب">
                 <i class="fas fa-users-cog"></i>
-                <span class="nav-tooltip">الموظفين والرواتب</span>
+                <span class="nav-btn-text">الموظفين</span>
             </button>
             <button class="nav-tab-btn" id="tab-btn-expenses" onclick="switchView('expenses')" title="إدارة المصاريف والمشتريات">
                 <i class="fas fa-wallet"></i>
-                <span class="nav-tooltip">المصاريف</span>
+                <span class="nav-btn-text">المصاريف</span>
             </button>
             <button class="nav-tab-btn" id="tab-btn-reports" onclick="switchView('reports')" title="التقارير المالية وصافي الأرباح">
                 <i class="fas fa-chart-line"></i>
-                <span class="nav-tooltip">التقارير والأرباح</span>
+                <span class="nav-btn-text">التقارير</span>
             </button>
             <button class="nav-tab-btn" id="tab-btn-settings" onclick="switchView('settings')" title="إعدادات النظام والمطعم الشاملة">
                 <i class="fas fa-cog"></i>
-                <span class="nav-tooltip">الإعدادات</span>
+                <span class="nav-btn-text">الإعدادات</span>
             </button>
         </nav>
 
         <!-- إجراءات سريعة في أقصى اليسار -->
         <div class="header-actions">
             <!-- زر تثبيت التطبيق على جهاز الويندوز أو الشاشة -->
-            <button class="btn-install-pwa" id="btn-install-pwa" onclick="installDesktopApp()" title="تثبيت التطبيق على جهاز الكمبيوتر / الشاشة">
+            <button class="btn-install-pwa desktop-only" id="btn-install-pwa" onclick="installDesktopApp()" title="تثبيت التطبيق على جهاز الكمبيوتر / الشاشة">
                 <i class="fas fa-download"></i>
                 <span>تثبيت البرنامج</span>
             </button>
 
             <!-- زر تجربة صوت التنبيه -->
-            <button class="btn-icon-text" onclick="testSound()" title="تجربة رنين الإشعار">
+            <button class="btn-icon-text desktop-only" onclick="testSound()" title="تجربة رنين الإشعار">
                 <i class="fas fa-bell"></i>
             </button>
 
             <!-- زر طباعة تجريبية -->
-            <button class="btn-icon-text" onclick="testPrint()" title="معاينة طباعة الفاتورة">
+            <button class="btn-icon-text desktop-only" onclick="testPrint()" title="معاينة طباعة الفاتورة">
                 <i class="fas fa-print"></i>
             </button>
 
@@ -92,11 +92,6 @@
             <button class="btn-icon-text active-indicator" onclick="openModal('incoming-orders-modal')" title="طلبات المنيو الأونلاين">
                 <i class="fas fa-receipt"></i>
                 <span id="pending-orders-badge" class="badge-count" style="display: none;">0</span>
-            </button>
-
-            <!-- زر الإعدادات الكاملة -->
-            <button class="btn-icon-text" onclick="switchView('settings')" title="إعدادات النظام الشاملة">
-                <i class="fas fa-cog"></i>
             </button>
         </div>
     </header>
@@ -889,23 +884,31 @@
          شريط الملاحة السفلي المخصص للهواتف الذكية (Mobile Bottom Navigation Bar)
          ========================================================================= -->
     <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
-        <button type="button" class="mobile-nav-btn active" id="mobile-nav-pos" onclick="switchView('pos')">
+        <button type="button" class="mobile-nav-btn active" id="mobile-nav-pos" onclick="switchView('pos')" title="الكاشير">
             <i class="fas fa-cash-register"></i>
             <span>الكاشير</span>
         </button>
-        <button type="button" class="mobile-nav-btn" id="mobile-nav-tables" onclick="switchView('tables')">
+        <button type="button" class="mobile-nav-btn" id="mobile-nav-tables" onclick="switchView('tables')" title="الطاولات">
             <i class="fas fa-chair"></i>
             <span>الطاولات</span>
         </button>
-        <button type="button" class="mobile-nav-btn" id="mobile-nav-items" onclick="switchView('items')">
+        <button type="button" class="mobile-nav-btn" id="mobile-nav-items" onclick="switchView('items')" title="الأصناف">
             <i class="fas fa-utensils"></i>
-            <span>المنيو</span>
+            <span>الأصناف</span>
         </button>
-        <button type="button" class="mobile-nav-btn" id="mobile-nav-reports" onclick="switchView('reports')">
+        <button type="button" class="mobile-nav-btn" id="mobile-nav-hr" onclick="switchView('hr')" title="الموظفين">
+            <i class="fas fa-users-cog"></i>
+            <span>الموظفين</span>
+        </button>
+        <button type="button" class="mobile-nav-btn" id="mobile-nav-expenses" onclick="switchView('expenses')" title="المصاريف">
+            <i class="fas fa-wallet"></i>
+            <span>المصاريف</span>
+        </button>
+        <button type="button" class="mobile-nav-btn" id="mobile-nav-reports" onclick="switchView('reports')" title="التقارير">
             <i class="fas fa-chart-line"></i>
             <span>التقارير</span>
         </button>
-        <button type="button" class="mobile-nav-btn" id="mobile-nav-settings" onclick="switchView('settings')">
+        <button type="button" class="mobile-nav-btn" id="mobile-nav-settings" onclick="switchView('settings')" title="الإعدادات">
             <i class="fas fa-cog"></i>
             <span>الإعدادات</span>
         </button>
