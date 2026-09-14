@@ -18,7 +18,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <!-- ملف الأنماط والتنسيق -->
-    <link rel="stylesheet" href="css/style.css?v=3.8">
+    <link rel="stylesheet" href="css/style.css?v=3.9">
 </head>
 <body>
 
@@ -323,33 +323,27 @@
                 </div>
             </div>
 
-            <!-- شريط تصنيفات ومناطق الطاولات (Indoor / Outdoor / VIP) -->
-            <div class="table-zones-bar">
-                <button class="zone-tab active" id="zone-tab-all" onclick="filterTablesByZone('all')">
-                    <i class="fas fa-th-large"></i>
-                    <span>🌟 كل الطاولات</span>
-                    <span class="zone-count" id="zone-count-all">0</span>
-                </button>
-                <button class="zone-tab" id="zone-tab-indoor" onclick="filterTablesByZone('indoor')">
-                    <i class="fas fa-home"></i>
-                    <span>🏠 صالة داخلية (Indoor)</span>
-                    <span class="zone-count" id="zone-count-indoor">0</span>
-                </button>
-                <button class="zone-tab" id="zone-tab-outdoor" onclick="filterTablesByZone('outdoor')">
-                    <i class="fas fa-tree"></i>
-                    <span>🌳 جلسات خارجية (Outdoor)</span>
-                    <span class="zone-count" id="zone-count-outdoor">0</span>
-                </button>
-                <button class="zone-tab" id="zone-tab-vip" onclick="filterTablesByZone('vip')">
-                    <i class="fas fa-crown"></i>
-                    <span>👑 VIP وعوائل</span>
-                    <span class="zone-count" id="zone-count-vip">0</span>
-                </button>
+            <!-- شريط توضيحي لحالات الطاولات وإرشادات الاستخدام -->
+            <div class="tables-legend-bar" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; background: #fff; border: 1px solid var(--border-color); padding: 10px 14px; border-radius: 12px;">
+                <div style="display: flex; align-items: center; gap: 16px; font-size: 0.82rem; font-weight: 700; flex-wrap: wrap;">
+                    <span style="display: inline-flex; align-items: center; gap: 6px; color: #16a34a;">
+                        <span style="width: 12px; height: 12px; border-radius: 4px; background: #22c55e; display: inline-block;"></span> متاحة (فارغة)
+                    </span>
+                    <span style="display: inline-flex; align-items: center; gap: 6px; color: #dc2626;">
+                        <span style="width: 12px; height: 12px; border-radius: 4px; background: #ef4444; display: inline-block;"></span> مشغولة بطلب
+                    </span>
+                    <span style="display: inline-flex; align-items: center; gap: 6px; color: #d97706;">
+                        <span style="width: 12px; height: 12px; border-radius: 4px; background: #f59e0b; display: inline-block;"></span> مطلوب الفاتورة
+                    </span>
+                </div>
+                <div style="font-size: 0.78rem; color: #64748b;">
+                    💡 اضغط على أي طاولة لنقلها، محاسبتها، أو تفريغها
+                </div>
             </div>
 
-            <!-- شبكة الطاولات المرئية -->
-            <div class="tables-grid" id="tables-grid-container">
-                <!-- يتم توليد كروت الطاولات ديناميكياً -->
+            <!-- حاوية شبكة الطاولات المقسمة بخطوط فاصلة حسب المناطق -->
+            <div id="tables-grid-container" class="tables-unified-container">
+                <!-- يتم توليد الأقسام والخطوط الفاصلة ومربعات الطاولات ديناميكياً -->
             </div>
         </div>
     </main>
@@ -1086,11 +1080,12 @@
 <div class="modal-overlay" id="add-table-modal">
     <div class="modal-card">
         <div class="modal-header">
-            <h3><i class="fas fa-plus-circle"></i> إضافة طاولة جديدة</h3>
+            <h3 id="add-table-modal-title"><i class="fas fa-chair"></i> إضافة طاولة جديدة</h3>
             <button class="modal-close-btn" onclick="closeModal('add-table-modal')">&times;</button>
         </div>
         <form id="add-table-form">
             <div class="modal-body">
+                <input type="hidden" id="input-edit-table-id" value="">
                 <div class="form-group">
                     <label>اسم أو رقم الطاولة:</label>
                     <input type="text" id="input-new-table-name" required placeholder="مثال: طاولة 5 أو VIP 2">
@@ -1607,10 +1602,17 @@
                     </div>
                     <div style="width: 40px; height: 40px; border-radius: 8px; background: #ede9fe; color: #7c3aed; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;"><i class="fas fa-check-double"></i></div>
                 </div>
+                <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; display: flex; align-items: center; justify-content: space-between;">
+                    <div>
+                        <div style="font-size: 0.78rem; color: #64748b; font-weight: 700;">طلبات مرتجعة / ملغية</div>
+                        <div style="font-size: 1.4rem; font-weight: 800; color: #ef4444;" id="hub-kpi-returned-count">0</div>
+                    </div>
+                    <div style="width: 40px; height: 40px; border-radius: 8px; background: #fee2e2; color: #ef4444; display: flex; align-items: center; justify-content: center; font-size: 1.2rem;"><i class="fas fa-undo"></i></div>
+                </div>
             </div>
 
             <!-- شريط التبويبات داخل نافذة الدليفري -->
-            <div style="display: flex; gap: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 16px;">
+            <div style="display: flex; gap: 8px; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 16px; overflow-x: auto;">
                 <button type="button" class="kds-station-tab active" id="hub-tab-drivers" onclick="switchDeliveryHubTab('drivers')">
                     <i class="fas fa-users"></i> تقفيل حسابات الطيارين والعهد
                 </button>
@@ -1619,6 +1621,9 @@
                 </button>
                 <button type="button" class="kds-station-tab" id="hub-tab-history" onclick="switchDeliveryHubTab('history')">
                     <i class="fas fa-history"></i> سجل الطلبات المقفلة
+                </button>
+                <button type="button" class="kds-station-tab" id="hub-tab-returned" onclick="switchDeliveryHubTab('returned')">
+                    <i class="fas fa-undo"></i> المرتجعات والملغيات
                 </button>
             </div>
 
@@ -1642,10 +1647,155 @@
                     <!-- سجل الطلبات المقفلة -->
                 </div>
             </div>
+
+            <!-- تبويب 4: سجل الطلبات المرتجعة والملغية -->
+            <div id="hub-section-returned" style="display: none;">
+                <div id="hub-returned-orders-list" style="display: flex; flex-direction: column; gap: 8px;">
+                    <!-- سجل الطلبات المرتجعة -->
+                </div>
+            </div>
         </div>
 
         <div class="modal-footer">
             <button type="button" class="btn-icon-text" onclick="closeModal('delivery-hub-modal')">إلغاء</button>
+        </div>
+    </div>
+</div>
+
+<!-- نافذة ترجيع طلب دليفري وحسمه من عهدة الطيار -->
+<div class="modal-overlay" id="delivery-return-modal">
+    <div class="modal-card" style="max-width: 460px; width: 95vw;">
+        <div class="modal-header">
+            <h3><i class="fas fa-undo" style="color: #ef4444;"></i> تسجيل إرجاع طلب توصيل</h3>
+            <button class="modal-close-btn" onclick="closeModal('delivery-return-modal')">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 16px;">
+            <input type="hidden" id="return-delivery-order-id">
+            <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 10px; margin-bottom: 12px; font-size: 0.85rem; color: #991b1b; display: flex; gap: 8px; align-items: flex-start;">
+                <i class="fas fa-exclamation-triangle" style="margin-top: 2px;"></i>
+                <div>
+                    <strong>تنبيه مالي:</strong> عند تأكيد إرجاع الطلب، سيتم <strong>إسقاط قيمته فورياً من النقدية المطلوب توريدها من الطيار</strong>، ولن تحتسب ضمن مبيعات التوصيل المسلمة.
+                </div>
+            </div>
+            <div class="form-group" style="margin-bottom: 12px;">
+                <label style="font-weight: 700; font-size: 0.88rem; display: block; margin-bottom: 6px;">سبب إرجاع الطلب:</label>
+                <select id="return-reason-select" class="form-control" onchange="handleReturnReasonChange(this.value)">
+                    <option value="العميل رفض الاستلام">العميل رفض الاستلام</option>
+                    <option value="العميل لا يرد على الهاتف">العميل لا يرد على الهاتف</option>
+                    <option value="عنوان غير واضح أو خارج نطاق التوصيل">عنوان غير واضح أو خارج نطاق التوصيل</option>
+                    <option value="تأخر في وصول الطلب فتم الإلغاء">تأخر في وصول الطلب فتم الإلغاء</option>
+                    <option value="طلب مكرر أو خاطئ">طلب مكرر أو خاطئ</option>
+                    <option value="other">سبب مخصص آخر...</option>
+                </select>
+            </div>
+            <div class="form-group" id="return-reason-custom-group" style="display: none; margin-bottom: 12px;">
+                <label style="font-weight: 700; font-size: 0.88rem; display: block; margin-bottom: 6px;">اكتب السبب بالتفصيل:</label>
+                <input type="text" id="return-reason-custom" class="form-control" placeholder="اكتب سبب الإرجاع هنا...">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-icon-text" onclick="closeModal('delivery-return-modal')">إلغاء</button>
+            <button type="button" class="btn-checkout" style="background: linear-gradient(135deg, #dc2626, #b91c1c); flex: initial; padding: 8px 20px;" onclick="confirmReturnDeliveryOrder()">
+                <i class="fas fa-undo"></i> تأكيد ترجيع الطلب
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- نافذة خيارات وإجراءات الطاولة التفاعلية (Table Action Modal) -->
+<div class="modal-overlay" id="table-action-modal">
+    <div class="modal-card" style="max-width: 520px; width: 95vw;">
+        <div class="modal-header">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div id="tam-icon-box" style="width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem;">
+                    <i class="fas fa-chair"></i>
+                </div>
+                <div>
+                    <h3 id="tam-title" style="margin: 0; font-size: 1.2rem;">طاولة 1</h3>
+                    <div id="tam-subtitle" style="font-size: 0.8rem; color: #64748b;">الصالة الداخلية • 4 كراسي</div>
+                </div>
+            </div>
+            <button class="modal-close-btn" onclick="closeModal('table-action-modal')">&times;</button>
+        </div>
+
+        <div class="modal-body" style="padding: 16px; max-height: 75vh; overflow-y: auto;">
+            <!-- في حال كانت الطاولة مشغولة: تفاصيل الحساب والطلبات الحالية -->
+            <div id="tam-occupied-view" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px; margin-bottom: 12px;">
+                    <div>
+                        <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; display: block;">وقت فتح الطاولة:</span>
+                        <span id="tam-opened-at" style="font-weight: 800; font-size: 0.95rem; color: #0f172a;">-</span>
+                    </div>
+                    <div style="text-align: left;">
+                        <span style="font-size: 0.75rem; color: #64748b; font-weight: 700; display: block;">إجمالي الحساب الحالي:</span>
+                        <span id="tam-order-total" style="font-size: 1.3rem; font-weight: 900; color: #16a34a;">0.00 ر.س</span>
+                    </div>
+                </div>
+
+                <!-- قائمة الأصناف في طلب الطاولة -->
+                <div style="font-weight: 700; font-size: 0.85rem; color: #475569; margin-bottom: 6px;">
+                    <i class="fas fa-receipt"></i> الأصناف المطلوبة على الطاولة:
+                </div>
+                <div id="tam-items-list" style="max-height: 180px; overflow-y: auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px;">
+                    <!-- الأصناف تضاف ديناميكياً -->
+                </div>
+
+                <!-- شبكة أزرار الإجراءات السريعة للطاولة المشغولة -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button type="button" class="btn-checkout" style="background: linear-gradient(135deg, #0284c7, #0369a1); padding: 11px 10px; font-size: 0.88rem;" onclick="handleTamAddItems()">
+                        <i class="fas fa-cart-plus"></i> فتح وتعديل الطلب
+                    </button>
+                    <button type="button" class="btn-checkout" style="background: linear-gradient(135deg, #10b981, #059669); padding: 11px 10px; font-size: 0.88rem;" onclick="handleTamCheckout()">
+                        <i class="fas fa-cash-register"></i> محاسبة وإنهاء الحساب
+                    </button>
+                    <button type="button" class="btn-icon-text" style="padding: 10px; font-size: 0.85rem; justify-content: center;" onclick="handleTamShowTransfer()">
+                        <i class="fas fa-exchange-alt" style="color: #7c3aed;"></i> نقل الطاولة إلى أخرى
+                    </button>
+                    <button type="button" class="btn-icon-text" style="padding: 10px; font-size: 0.85rem; justify-content: center; color: #dc2626;" onclick="handleTamClearTable()">
+                        <i class="fas fa-undo"></i> تصفير وإخلاء الطاولة
+                    </button>
+                </div>
+
+                <!-- لوحة نقل الطاولة السريعة (تظهر عند الضغط على زر نقل الطاولة) -->
+                <div id="tam-transfer-panel" style="display: none; margin-top: 14px; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 10px; padding: 12px;">
+                    <div style="font-weight: 700; font-size: 0.85rem; color: #6b21a8; margin-bottom: 8px;">
+                        <i class="fas fa-exchange-alt"></i> اختر الطاولة الفارغة المراد نقل الطلب إليها:
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <select id="tam-transfer-target-select" class="form-control" style="flex: 1;"></select>
+                        <button type="button" class="btn-checkout" style="background: #7c3aed; flex: initial; padding: 8px 16px; font-size: 0.85rem;" onclick="handleTamConfirmTransfer()">
+                            تأكيد النقل
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- في حال كانت الطاولة فارغة (متاحة) -->
+            <div id="tam-vacant-view" style="display: none; text-align: center; padding: 15px 0;">
+                <div style="width: 56px; height: 56px; border-radius: 50%; background: #ecfdf5; color: #059669; display: inline-flex; align-items: center; justify-content: center; font-size: 1.8rem; margin-bottom: 10px;">
+                    <i class="fas fa-check"></i>
+                </div>
+                <h4 style="margin: 0; font-size: 1.1rem; color: #0f172a;">الطاولة متاحة وفارغة</h4>
+                <p style="font-size: 0.85rem; color: #64748b; margin: 4px 0 16px;">جاهزة لاستقبال الزبائن وفتح طلب جديد فوراً</p>
+
+                <div style="display: flex; flex-direction: column; gap: 10px; max-width: 320px; margin: 0 auto;">
+                    <button type="button" class="btn-checkout" style="padding: 12px; font-size: 0.95rem; justify-content: center;" onclick="handleTamNewOrder()">
+                        <i class="fas fa-plus-circle"></i> بدء طلب جديد لهذه الطاولة
+                    </button>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="btn-icon-text" style="flex: 1; justify-content: center; padding: 9px;" onclick="handleTamEditTable()">
+                            <i class="fas fa-edit"></i> تعديل الطاولة
+                        </button>
+                        <button type="button" class="btn-icon-text" style="flex: 1; justify-content: center; padding: 9px; color: #dc2626;" onclick="handleTamDeleteTable()">
+                            <i class="fas fa-trash"></i> حذف الطاولة
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button type="button" class="btn-icon-text" onclick="closeModal('table-action-modal')">إغلاق</button>
         </div>
     </div>
 </div>
@@ -1768,7 +1918,7 @@
 </div>
 
 <!-- ملف الجافاسكريبت الرئيسي المطور -->
-<script src="js/app.js?v=3.8"></script>
+<script src="js/app.js?v=3.9"></script>
 
 <!-- تسجيل الـ Service Worker لتشغيل PWA -->
 <script>

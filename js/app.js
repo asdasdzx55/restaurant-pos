@@ -1200,125 +1200,324 @@ async function submitOrder() {
 // =============================================================================
 function filterTablesByZone(zone) {
     state.selectedZone = zone || 'all';
-    document.querySelectorAll('.table-zones-bar .zone-tab').forEach(tab => {
-        if (tab.dataset.zone === state.selectedZone) {
-            tab.classList.add('active');
-        } else {
-            tab.classList.remove('active');
-        }
-    });
     renderTables();
 }
 
 function renderTables() {
-    const grid = document.getElementById('tables-grid-container');
-    if (!grid) return;
-    grid.innerHTML = '';
+    const container = document.getElementById('tables-grid-container');
+    if (!container) return;
+    container.innerHTML = '';
 
     const total = state.tables.length;
     const vacant = state.tables.filter(t => t.status === 'vacant').length;
     const occupied = state.tables.filter(t => t.status === 'occupied' || t.status === 'billed').length;
     const revenue = state.tables.reduce((sum, t) => sum + (t.orderTotal || 0), 0);
 
-    document.getElementById('kpi-total-tables').textContent = total;
-    document.getElementById('kpi-vacant-tables').textContent = vacant;
-    document.getElementById('kpi-occupied-tables').textContent = occupied;
-    document.getElementById('kpi-tables-revenue').textContent = `${revenue.toFixed(2)} ${state.settings.currency}`;
+    const kpiTotal = document.getElementById('kpi-total-tables');
+    const kpiVacant = document.getElementById('kpi-vacant-tables');
+    const kpiOccupied = document.getElementById('kpi-occupied-tables');
+    const kpiRev = document.getElementById('kpi-tables-revenue');
 
-    // تحديث أعداد الطاولات حسب المناطق
-    const countAll = state.tables.length;
-    const countIndoor = state.tables.filter(t => (t.zone || 'indoor') === 'indoor').length;
-    const countOutdoor = state.tables.filter(t => t.zone === 'outdoor').length;
-    const countVip = state.tables.filter(t => t.zone === 'vip').length;
+    if (kpiTotal) kpiTotal.textContent = total;
+    if (kpiVacant) kpiVacant.textContent = vacant;
+    if (kpiOccupied) kpiOccupied.textContent = occupied;
+    if (kpiRev) kpiRev.textContent = `${revenue.toFixed(2)} ${state.settings.currency}`;
 
-    const elCountAll = document.getElementById('count-zone-all');
-    const elCountIndoor = document.getElementById('count-zone-indoor');
-    const elCountOutdoor = document.getElementById('count-zone-outdoor');
-    const elCountVip = document.getElementById('count-zone-vip');
-    if (elCountAll) elCountAll.textContent = countAll;
-    if (elCountIndoor) elCountIndoor.textContent = countIndoor;
-    if (elCountOutdoor) elCountOutdoor.textContent = countOutdoor;
-    if (elCountVip) elCountVip.textContent = countVip;
-
-    // فلترة الطاولات حسب المنطقة المختارة
-    let displayedTables = state.tables;
-    if (state.selectedZone && state.selectedZone !== 'all') {
-        displayedTables = state.tables.filter(t => (t.zone || 'indoor') === state.selectedZone);
-    }
-
-    if (displayedTables.length === 0) {
-        grid.innerHTML = `
-            <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: #94a3b8;">
-                <i class="fas fa-layer-group" style="font-size: 2.5rem; margin-bottom: 12px; opacity: 0.5;"></i>
-                <div style="font-weight: 700; font-size: 1.1rem; color: #64748b;">لا توجد طاولات في هذا القسم حالياً</div>
-                <p style="margin-top: 6px; font-size: 0.85rem;">يمكنك إضافة طاولة جديدة وتحديد منطقتها من زر "إضافة طاولة جديدة"</p>
+    if (state.tables.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 45px 20px; background: #fff; border-radius: 14px; border: 1px dashed var(--border-color); color: #94a3b8;">
+                <i class="fas fa-layer-group" style="font-size: 2.8rem; margin-bottom: 12px; opacity: 0.5;"></i>
+                <div style="font-weight: 700; font-size: 1.1rem; color: #64748b;">لا توجد طاولات مضافة في النظام حالياً</div>
+                <p style="margin-top: 6px; font-size: 0.85rem;">اضغط على "إضافة طاولة جديدة" بالأعلى لتسجيل طاولات الصالة والتراس</p>
             </div>
         `;
         return;
     }
 
-    displayedTables.forEach(table => {
-        const card = document.createElement('div');
-        const statusClass = table.status === 'vacant' ? 'vacant' : (table.status === 'occupied' ? 'occupied' : 'billed');
-        const statusText = table.status === 'vacant' ? 'فارغة (متاحة)' : (table.status === 'occupied' ? 'مشغولة' : 'فاتورة مطلوبة');
+    // تعريف بيانات وترتيب المناطق الأساسية
+    const zoneMeta = {
+        'indoor': { name: 'الصالة الداخلية (Indoor)', icon: 'fa-home', color: '#0284c7' },
+        'outdoor': { name: 'الجلسات الخارجية / التراس (Outdoor)', icon: 'fa-tree', color: '#10b981' },
+        'vip': { name: 'صالة خاصة و VIP', icon: 'fa-crown', color: '#f59e0b' },
+        'family': { name: 'قسم العوائل (Family)', icon: 'fa-users', color: '#8b5cf6' }
+    };
 
-        const zoneKey = table.zone || 'indoor';
-        const zoneLabels = {
-            'indoor': { text: 'صالة داخلية', icon: 'fa-couch' },
-            'outdoor': { text: 'جلسة خارجية', icon: 'fa-sun' },
-            'vip': { text: 'VIP عوائل', icon: 'fa-crown' }
-        };
-        const zoneInfo = zoneLabels[zoneKey] || zoneLabels['indoor'];
+    // تجميع الطاولات حسب المنطقة
+    const groups = {};
+    state.tables.forEach(t => {
+        const z = t.zone || 'indoor';
+        if (!groups[z]) groups[z] = [];
+        groups[z].push(t);
+    });
 
-        let itemsSummaryHtml = '<div style="color: #94a3b8;">لا توجد طلبات جارية</div>';
-        if (table.orderItems && table.orderItems.length > 0) {
-            const summaryText = table.orderItems.map(it => `${escapeHtml(it.name)} (${it.quantity})${it.note ? ' [' + escapeHtml(it.note) + ']' : ''}`).join('، ');
-            itemsSummaryHtml = `
-                <div><i class="fas fa-utensils"></i> الأصناف: ${table.orderItems.length} صنف</div>
-                <div style="font-size: 0.75rem; color: #64748b; margin-top: 3px; max-height: 40px; overflow: hidden; text-overflow: ellipsis; white-space: normal;" title="${escapeHtml(summaryText)}">
-                    ${summaryText}
+    // ترتيب العرض: indoor أولاً ثم outdoor ثم vip ثم family ثم أي مناطق أخرى
+    const orderedZones = Object.keys(groups).sort((a, b) => {
+        const order = { 'indoor': 1, 'outdoor': 2, 'vip': 3, 'family': 4 };
+        return (order[a] || 99) - (order[b] || 99);
+    });
+
+    orderedZones.forEach(zKey => {
+        const zoneTables = groups[zKey];
+        const meta = zoneMeta[zKey] || { name: `قسم ${zKey}`, icon: 'fa-couch', color: '#475569' };
+
+        const sec = document.createElement('div');
+        sec.className = 'zone-section';
+
+        sec.innerHTML = `
+            <div class="zone-section-header">
+                <div class="zone-title" style="color: ${meta.color};">
+                    <i class="fas ${meta.icon}"></i>
+                    <span>${meta.name}</span>
+                    <span class="zone-count-chip">${zoneTables.length} طاولة</span>
                 </div>
-            `;
+                <div class="zone-divider-line"></div>
+            </div>
+            <div class="zone-tables-grid"></div>
+        `;
+
+        const grid = sec.querySelector('.zone-tables-grid');
+
+        zoneTables.forEach(table => {
+            const chip = document.createElement('div');
+            const status = table.status || 'vacant';
+            chip.className = `table-chip ${status}`;
+            chip.title = `${table.name} (${status === 'vacant' ? 'فارغة ومتاحة' : 'مشغولة - اضغط للخيارات'})`;
+            chip.onclick = () => openTableActionModal(table.id);
+
+            let contentHtml = '';
+            if (status === 'vacant') {
+                contentHtml = `
+                    <div class="table-chip-number">${escapeHtml(table.name)}</div>
+                    <div class="table-chip-status"><i class="fas fa-check"></i> متاحة</div>
+                    <div class="table-chip-seats"><i class="fas fa-chair"></i> ${table.seats || 4}</div>
+                `;
+            } else if (status === 'occupied') {
+                const count = (table.orderItems || []).length;
+                contentHtml = `
+                    <div class="table-chip-badge">${count} صنف</div>
+                    <div class="table-chip-number">${escapeHtml(table.name)}</div>
+                    <div class="table-chip-total">${Number(table.orderTotal || 0).toFixed(0)} ${state.settings.currency}</div>
+                `;
+            } else { // billed
+                contentHtml = `
+                    <div class="table-chip-badge" style="background:#f59e0b;">فاتورة</div>
+                    <div class="table-chip-number">${escapeHtml(table.name)}</div>
+                    <div class="table-chip-total">${Number(table.orderTotal || 0).toFixed(0)} ${state.settings.currency}</div>
+                `;
+            }
+
+            chip.innerHTML = contentHtml;
+            grid.appendChild(chip);
+        });
+
+        container.appendChild(sec);
+    });
+}
+
+function openTableActionModal(tableId) {
+    const table = state.tables.find(t => t.id === tableId);
+    if (!table) return;
+
+    state.selectedModalTableId = table.id;
+
+    const titleEl = document.getElementById('tam-title');
+    const subEl = document.getElementById('tam-subtitle');
+    const iconBox = document.getElementById('tam-icon-box');
+
+    const zoneNames = {
+        'indoor': 'الصالة الداخلية',
+        'outdoor': 'الجلسات الخارجية',
+        'vip': 'VIP وعوائل',
+        'family': 'قسم العوائل'
+    };
+    const zoneName = zoneNames[table.zone] || table.zone || 'الصالة الداخلية';
+
+    if (titleEl) titleEl.textContent = table.name;
+    if (subEl) subEl.textContent = `${zoneName} • سعة ${table.seats || 4} كراسي`;
+
+    const occView = document.getElementById('tam-occupied-view');
+    const vacView = document.getElementById('tam-vacant-view');
+    const transferPanel = document.getElementById('tam-transfer-panel');
+    if (transferPanel) transferPanel.style.display = 'none';
+
+    if (table.status === 'occupied' || table.status === 'billed') {
+        if (occView) occView.style.display = 'block';
+        if (vacView) vacView.style.display = 'none';
+
+        if (iconBox) {
+            iconBox.style.background = '#fee2e2';
+            iconBox.style.color = '#dc2626';
+            iconBox.innerHTML = '<i class="fas fa-utensils"></i>';
         }
 
-        card.className = `table-card ${statusClass}`;
-        card.innerHTML = `
-            <div class="table-card-top">
-                <div class="table-number-title">
-                    <i class="fas fa-chair"></i>
-                    <span>${escapeHtml(table.name)}</span>
-                </div>
-                <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
-                    <span class="table-zone-badge ${zoneKey}"><i class="fas ${zoneInfo.icon}"></i> ${zoneInfo.text}</span>
-                    <span class="table-status-pill ${statusClass}">${statusText}</span>
-                </div>
-            </div>
-            <div class="table-card-body">
-                <div><i class="fas fa-user-friends"></i> السعة: ${table.seats || 4} كراسي</div>
-                ${table.openedAt ? `<div><i class="fas fa-clock"></i> جلوس منذ: ${table.openedAt}</div>` : ''}
-                ${itemsSummaryHtml}
-                <div class="table-order-amount">${Number(table.orderTotal || 0).toFixed(2)} ${state.settings.currency}</div>
-            </div>
-            <div class="table-card-actions">
-                <button class="table-btn primary" onclick="openTableInPOS(${table.id})" title="${table.status === 'vacant' ? 'فتح طلب جديد' : 'تعديل طلب الطاولة'}">
-                    <i class="fas fa-cart-plus"></i> ${table.status === 'vacant' ? 'طلب' : 'تعديل'}
-                </button>
-                ${table.status !== 'vacant' ? `
-                    <button class="table-btn success" onclick="checkoutTableDirectly(${table.id})" title="محاسبة وإصدار الفاتورة">
-                        <i class="fas fa-cash-register"></i> محاسبة
-                    </button>
-                    <button class="table-btn warning" onclick="clearTableWithoutCheckout(${table.id})" title="تفريغ الطاولة بدون محاسبة">
-                        <i class="fas fa-undo"></i> تفريغ
-                    </button>
-                ` : `
-                    <button class="table-btn danger" onclick="deleteTable(${table.id})" title="حذف الطاولة">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                `}
-            </div>
-        `;
-        grid.appendChild(card);
-    });
+        const openAtEl = document.getElementById('tam-opened-at');
+        const totalEl = document.getElementById('tam-order-total');
+        const itemsList = document.getElementById('tam-items-list');
+
+        if (openAtEl) openAtEl.textContent = table.openedAt || 'منذ قليل';
+        if (totalEl) totalEl.textContent = `${Number(table.orderTotal || 0).toFixed(2)} ${state.settings.currency}`;
+
+        if (itemsList) {
+            if (!table.orderItems || table.orderItems.length === 0) {
+                itemsList.innerHTML = '<div style="color: #94a3b8; font-size: 0.85rem; padding: 6px;">لا توجد أصناف مسجلة</div>';
+            } else {
+                itemsList.innerHTML = table.orderItems.map(it => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px; font-size: 0.84rem;">
+                        <div>
+                            <span style="font-weight: 700; color: #1e293b;">${escapeHtml(it.name)}</span>
+                            <span style="color: #64748b; font-size: 0.76rem; margin-right: 4px;">× ${it.quantity}</span>
+                            ${it.note ? `<div style="font-size: 0.72rem; color: #e11d48;"><i class="fas fa-comment-dots"></i> ${escapeHtml(it.note)}</div>` : ''}
+                        </div>
+                        <div style="font-weight: 800; color: #0f172a;">
+                            ${(Number(it.price) * Number(it.quantity)).toFixed(2)} ${state.settings.currency}
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // تعبئة قائمة الطاولات الفارغة للنقل
+        const select = document.getElementById('tam-transfer-target-select');
+        if (select) {
+            const vacantTables = state.tables.filter(t => t.id !== table.id && t.status === 'vacant');
+            if (vacantTables.length === 0) {
+                select.innerHTML = '<option value="">لا توجد طاولات فارغة أخرى حالياً</option>';
+            } else {
+                select.innerHTML = vacantTables.map(vt => `
+                    <option value="${vt.id}">${escapeHtml(vt.name)} (${zoneNames[vt.zone] || vt.zone || 'صالة'})</option>
+                `).join('');
+            }
+        }
+    } else {
+        // فارغة (Vacant)
+        if (occView) occView.style.display = 'none';
+        if (vacView) vacView.style.display = 'block';
+
+        if (iconBox) {
+            iconBox.style.background = '#ecfdf5';
+            iconBox.style.color = '#059669';
+            iconBox.innerHTML = '<i class="fas fa-chair"></i>';
+        }
+    }
+
+    openModal('table-action-modal');
+}
+
+function handleTamAddItems() {
+    closeModal('table-action-modal');
+    if (state.selectedModalTableId) {
+        openTableInPOS(state.selectedModalTableId);
+    }
+}
+
+function handleTamCheckout() {
+    closeModal('table-action-modal');
+    if (state.selectedModalTableId) {
+        checkoutTableDirectly(state.selectedModalTableId);
+    }
+}
+
+function handleTamShowTransfer() {
+    const panel = document.getElementById('tam-transfer-panel');
+    if (panel) {
+        panel.style.display = (panel.style.display === 'none' || !panel.style.display) ? 'block' : 'none';
+    }
+}
+
+function handleTamConfirmTransfer() {
+    const select = document.getElementById('tam-transfer-target-select');
+    if (!select || !select.value) {
+        showToast('يرجى اختيار طاولة فارغة لنقل الطلب إليها', 'warning');
+        return;
+    }
+    const targetId = Number(select.value);
+    transferTable(state.selectedModalTableId, targetId);
+}
+
+function handleTamClearTable() {
+    if (state.selectedModalTableId) {
+        clearTableWithoutCheckout(state.selectedModalTableId);
+        closeModal('table-action-modal');
+    }
+}
+
+function handleTamNewOrder() {
+    closeModal('table-action-modal');
+    if (state.selectedModalTableId) {
+        openTableInPOS(state.selectedModalTableId);
+    }
+}
+
+function handleTamEditTable() {
+    closeModal('table-action-modal');
+    if (state.selectedModalTableId) {
+        openEditTableModal(state.selectedModalTableId);
+    }
+}
+
+function handleTamDeleteTable() {
+    if (state.selectedModalTableId) {
+        deleteTable(state.selectedModalTableId);
+        closeModal('table-action-modal');
+    }
+}
+
+function transferTable(sourceId, targetId) {
+    const source = state.tables.find(t => t.id === sourceId);
+    const target = state.tables.find(t => t.id === targetId);
+
+    if (!source || !target) {
+        showToast('تعذر العثور على بيانات الطاولة', 'error');
+        return;
+    }
+
+    if (!confirm(`هل تريد نقل طلب الحساب بالكامل من "${source.name}" إلى "${target.name}"؟`)) {
+        return;
+    }
+
+    // نقل الطلب
+    target.status = 'occupied';
+    target.orderItems = [...(source.orderItems || [])];
+    target.orderTotal = Number(source.orderTotal) || 0;
+    target.openedAt = source.openedAt || new Date().toLocaleTimeString('ar-SA');
+
+    // إخلاء المصدر
+    source.status = 'vacant';
+    source.orderItems = [];
+    source.orderTotal = 0;
+    source.openedAt = null;
+
+    if (state.activeTableId === sourceId) {
+        state.activeTableId = target.id;
+        const input = document.getElementById('table-num-input');
+        if (input) input.value = target.name;
+    }
+
+    saveTables();
+    renderTables();
+    closeModal('table-action-modal');
+    showToast(`🎉 تم نقل طلب "${source.name}" إلى "${target.name}" بنجاح!`, 'success');
+}
+
+function openEditTableModal(tableId) {
+    const table = state.tables.find(t => t.id === tableId);
+    if (!table) return;
+
+    const modalTitle = document.getElementById('add-table-modal-title');
+    const editIdInput = document.getElementById('input-edit-table-id');
+    const nameInput = document.getElementById('input-new-table-name');
+    const zoneSelect = document.getElementById('input-new-table-zone');
+    const seatsInput = document.getElementById('input-new-table-seats');
+    const notesInput = document.getElementById('input-new-table-notes');
+
+    if (modalTitle) modalTitle.innerHTML = `<i class="fas fa-edit"></i> تعديل بيانات ${escapeHtml(table.name)}`;
+    if (editIdInput) editIdInput.value = table.id;
+    if (nameInput) nameInput.value = table.name;
+    if (zoneSelect) zoneSelect.value = table.zone || 'indoor';
+    if (seatsInput) seatsInput.value = table.seats || 4;
+    if (notesInput) notesInput.value = table.notes || '';
+
+    openModal('add-table-modal');
 }
 
 function openTableInPOS(tableId) {
@@ -1976,7 +2175,7 @@ function openDeliveryHubModal() {
 
 function switchDeliveryHubTab(tabName) {
     state.activeHubTab = tabName;
-    ['drivers', 'orders', 'history'].forEach(t => {
+    ['drivers', 'orders', 'history', 'returned'].forEach(t => {
         const btn = document.getElementById(`hub-tab-${t}`);
         const sec = document.getElementById(`hub-section-${t}`);
         if (btn) btn.classList.toggle('active', t === tabName);
@@ -1989,6 +2188,7 @@ function renderDeliveryHub() {
     const orders = state.deliveryOrders || [];
     const activeOrders = orders.filter(o => o.status === 'out_for_delivery');
     const settledOrders = orders.filter(o => o.status === 'settled');
+    const returnedOrders = orders.filter(o => o.status === 'returned');
 
     const cashToCollect = activeOrders
         .filter(o => (o.payment_method || 'cash') === 'cash')
@@ -1997,16 +2197,19 @@ function renderDeliveryHub() {
     const kpiActive = document.getElementById('hub-kpi-active-count');
     const kpiCash = document.getElementById('hub-kpi-cash-to-collect');
     const kpiSettled = document.getElementById('hub-kpi-settled-count');
+    const kpiReturned = document.getElementById('hub-kpi-returned-count');
 
     if (kpiActive) kpiActive.textContent = activeOrders.length;
     if (kpiCash) kpiCash.textContent = `${cashToCollect.toFixed(2)} ${state.settings.currency}`;
     if (kpiSettled) kpiSettled.textContent = settledOrders.length;
+    if (kpiReturned) kpiReturned.textContent = returnedOrders.length;
 
     updateDeliveryBadge();
 
     renderDriversSettlementCards(activeOrders);
     renderActiveDeliveryOrders(activeOrders);
     renderSettledDeliveryOrders(settledOrders);
+    renderReturnedDeliveryOrders(returnedOrders);
 }
 
 function renderDriversSettlementCards(activeOrders) {
@@ -2092,8 +2295,8 @@ function renderActiveDeliveryOrders(activeOrders) {
         const itemsText = items.map(i => `${i.name} × ${i.quantity}`).join('، ');
         html += `
             <div class="hub-order-card">
-                <div style="flex: 1; min-width: 260px;">
-                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                <div style="flex: 1; min-width: 250px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap;">
                         <span style="font-weight: 800; font-size: 0.95rem; color: #0f172a;">طلب #${ord.id}</span>
                         <span style="font-size: 0.72rem; background: #e0f2fe; color: #0369a1; padding: 2px 7px; border-radius: 4px; font-weight: 700;"><i class="fas fa-motorcycle"></i> ${escapeHtml(ord.delivery_driver || 'بدون سائق')}</span>
                         <span style="font-size: 0.72rem; color: #64748b;">${ord.created_at || ''}</span>
@@ -2114,11 +2317,17 @@ function renderActiveDeliveryOrders(activeOrders) {
                     <div style="font-size: 1.1rem; font-weight: 800; color: #16a34a;">
                         ${Number(ord.total_price).toFixed(2)} ${state.settings.currency}
                     </div>
-                    <div style="display: flex; gap: 6px;">
+                    <div style="display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end;">
                         <button type="button" class="btn-icon-text" style="padding: 6px 10px; font-size: 0.8rem;" onclick="triggerPrint(${JSON.stringify(ord).replace(/"/g, '&quot;')})" title="طباعة بون التوصيل">
                             <i class="fas fa-print"></i> بون
                         </button>
-                        <button type="button" class="btn-checkout" style="padding: 6px 14px; font-size: 0.82rem; background: linear-gradient(135deg, #059669, #10b981);" onclick="settleSingleDeliveryOrder('${ord.id}')">
+                        <button type="button" class="btn-return-order" onclick="openReturnDeliveryModal('${ord.id}')" title="تسجيل إرجاع الأوردر وإسقاطه من عهدة الطيار">
+                            <i class="fas fa-undo"></i> ترجيع
+                        </button>
+                        <button type="button" class="btn-delete-order" onclick="deleteDeliveryOrder('${ord.id}')" title="حذف طلب التوصيل نهائياً">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                        <button type="button" class="btn-checkout" style="padding: 6px 14px; font-size: 0.82rem; background: linear-gradient(135deg, #059669, #10b981);" onclick="settleSingleDeliveryOrder('${ord.id}')" title="استلام النقدية وتقفيل الطلب كمسلم">
                             <i class="fas fa-check"></i> تقفيل وتسليم
                         </button>
                     </div>
@@ -2140,7 +2349,7 @@ function renderSettledDeliveryOrders(settledOrders) {
     }
 
     let html = '';
-    settledOrders.slice(0, 15).forEach(ord => {
+    settledOrders.slice(0, 25).forEach(ord => {
         html += `
             <div class="hub-order-card settled">
                 <div>
@@ -2156,6 +2365,102 @@ function renderSettledDeliveryOrders(settledOrders) {
     });
 
     list.innerHTML = html;
+}
+
+function renderReturnedDeliveryOrders(returnedOrders) {
+    const list = document.getElementById('hub-returned-orders-list');
+    if (!list) return;
+
+    if (!returnedOrders || returnedOrders.length === 0) {
+        list.innerHTML = `<div style="text-align: center; padding: 25px; color: #94a3b8;">لا توجد أي طلبات مرتجعة اليوم</div>`;
+        return;
+    }
+
+    let html = '';
+    returnedOrders.forEach(ord => {
+        html += `
+            <div class="hub-order-card returned">
+                <div style="flex: 1; min-width: 250px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 3px; flex-wrap: wrap;">
+                        <span style="font-weight: 800; color: #991b1b;">طلب #${ord.id} (مرتجع)</span>
+                        <span style="font-size: 0.72rem; background: #fee2e2; color: #991b1b; padding: 2px 7px; border-radius: 4px; font-weight: 700;">
+                            <i class="fas fa-motorcycle"></i> ${escapeHtml(ord.delivery_driver || '-')}
+                        </span>
+                        <span style="font-size: 0.72rem; color: #64748b;">${ord.returned_at || ord.created_at || ''}</span>
+                    </div>
+                    <div style="font-size: 0.82rem; color: #334155;">
+                        <strong>العميل:</strong> ${escapeHtml(ord.customer_name || '-')} 
+                        ${ord.customer_phone ? `(${escapeHtml(ord.customer_phone)})` : ''}
+                    </div>
+                    <div style="font-size: 0.78rem; color: #b91c1c; margin-top: 3px; font-weight: 700;">
+                        <i class="fas fa-exclamation-circle"></i> سبب الإرجاع: ${escapeHtml(ord.return_reason || 'غير محدد')}
+                    </div>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px;">
+                    <div style="font-weight: 800; color: #991b1b; font-size: 1rem;">
+                        ${Number(ord.total_price || 0).toFixed(2)} ${state.settings.currency}
+                    </div>
+                    <button type="button" class="btn-delete-order" onclick="deleteDeliveryOrder('${ord.id}')" title="حذف الطلب نهائياً">
+                        <i class="fas fa-trash"></i> حذف
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+
+    list.innerHTML = html;
+}
+
+function openReturnDeliveryModal(orderId) {
+    const input = document.getElementById('return-delivery-order-id');
+    if (input) input.value = orderId;
+    const select = document.getElementById('return-reason-select');
+    if (select) select.value = 'العميل رفض الاستلام';
+    const customGroup = document.getElementById('return-reason-custom-group');
+    if (customGroup) customGroup.style.display = 'none';
+    const customInput = document.getElementById('return-reason-custom');
+    if (customInput) customInput.value = '';
+    openModal('delivery-return-modal');
+}
+
+function handleReturnReasonChange(val) {
+    const customGroup = document.getElementById('return-reason-custom-group');
+    if (customGroup) {
+        customGroup.style.display = (val === 'other') ? 'block' : 'none';
+    }
+}
+
+function confirmReturnDeliveryOrder() {
+    const orderId = document.getElementById('return-delivery-order-id')?.value;
+    const ord = (state.deliveryOrders || []).find(o => String(o.id) === String(orderId));
+    if (!ord) return;
+
+    const select = document.getElementById('return-reason-select');
+    let reason = select ? select.value : 'العميل رفض الاستلام';
+    if (reason === 'other') {
+        const customVal = document.getElementById('return-reason-custom')?.value.trim();
+        reason = customVal || 'سبب آخر غير محدد';
+    }
+
+    ord.status = 'returned';
+    ord.returned_at = new Date().toLocaleTimeString('ar-SA');
+    ord.return_reason = reason;
+
+    saveDeliveryOrders();
+    renderDeliveryHub();
+    closeModal('delivery-return-modal');
+    showToast(`↩️ تم تسجيل إرجاع طلب التوصيل #${orderId} وإسقاط قيمته من عهدة الطيار`, 'warning');
+}
+
+function deleteDeliveryOrder(orderId) {
+    if (!confirm(`هل أنت متأكد من حذف وإلغاء طلب التوصيل #${orderId} نهائياً؟`)) {
+        return;
+    }
+
+    state.deliveryOrders = (state.deliveryOrders || []).filter(o => String(o.id) !== String(orderId));
+    saveDeliveryOrders();
+    renderDeliveryHub();
+    showToast(`🗑️ تم حذف طلب التوصيل #${orderId} بنجاح`, 'info');
 }
 
 function settleDriverOrders(driverName) {
@@ -2892,13 +3197,32 @@ function initEventListeners() {
         });
     });
 
-    // 1. نموذج إضافة طاولة جديدة
+    // 1. نموذج إضافة أو تعديل طاولة
     document.getElementById('add-table-form')?.addEventListener('submit', (e) => {
         e.preventDefault();
+        const editId = document.getElementById('input-edit-table-id')?.value;
         const name = document.getElementById('input-new-table-name').value.trim();
         const seats = parseInt(document.getElementById('input-new-table-seats').value) || 4;
         const zone = document.getElementById('input-new-table-zone')?.value || 'indoor';
         const notes = document.getElementById('input-new-table-notes').value.trim();
+
+        if (editId) {
+            const table = state.tables.find(t => String(t.id) === String(editId));
+            if (table) {
+                table.name = name;
+                table.seats = seats;
+                table.zone = zone;
+                table.notes = notes;
+            }
+            saveTables();
+            renderTables();
+            closeModal('add-table-modal');
+            showToast(`تم تعديل بيانات ${name} بنجاح!`, 'success');
+            document.getElementById('input-edit-table-id').value = '';
+            document.getElementById('add-table-modal-title').innerHTML = '<i class="fas fa-chair"></i> إضافة طاولة جديدة';
+            e.target.reset();
+            return;
+        }
 
         const newTable = {
             id: Date.now(),
@@ -3767,8 +4091,22 @@ window.switchDeliveryHubTab = switchDeliveryHubTab;
 window.renderDeliveryHub = renderDeliveryHub;
 window.settleDriverOrders = settleDriverOrders;
 window.settleSingleDeliveryOrder = settleSingleDeliveryOrder;
+window.openReturnDeliveryModal = openReturnDeliveryModal;
+window.handleReturnReasonChange = handleReturnReasonChange;
+window.confirmReturnDeliveryOrder = confirmReturnDeliveryOrder;
+window.deleteDeliveryOrder = deleteDeliveryOrder;
+window.renderReturnedDeliveryOrders = renderReturnedDeliveryOrders;
 window.updateDeliveryBadge = updateDeliveryBadge;
 
-
-
-
+// دوال إدارة وإجراءات الطاولات التفاعلية (Interactive Tables & Actions)
+window.openTableActionModal = openTableActionModal;
+window.handleTamAddItems = handleTamAddItems;
+window.handleTamCheckout = handleTamCheckout;
+window.handleTamShowTransfer = handleTamShowTransfer;
+window.handleTamConfirmTransfer = handleTamConfirmTransfer;
+window.handleTamClearTable = handleTamClearTable;
+window.handleTamNewOrder = handleTamNewOrder;
+window.handleTamEditTable = handleTamEditTable;
+window.handleTamDeleteTable = handleTamDeleteTable;
+window.transferTable = transferTable;
+window.openEditTableModal = openEditTableModal;
