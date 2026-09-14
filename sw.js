@@ -1,4 +1,4 @@
-const CACHE_NAME = 'codeart-pos-v3';
+const CACHE_NAME = 'codeart-pos-v3.8';
 const STATIC_ASSETS = [
   './',
   './index.html',
