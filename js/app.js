@@ -75,7 +75,9 @@ const state = {
     employees: [],
     payroll: [],
     expenses: [],
-    ordersHistory: []
+    ordersHistory: [],
+    kitchenOrders: [],
+    selectedKitchenStation: 'all'
 };
 
 // =============================================================================
@@ -101,6 +103,8 @@ document.addEventListener('DOMContentLoaded', () => {
     renderHR();
     renderExpenses();
     renderReports();
+    updateKitchenBadge();
+    updateInstallButtonVisibility();
 });
 
 function escapeHtml(str) {
@@ -129,7 +133,7 @@ function switchView(viewName) {
     const mobileBtn = document.getElementById(`mobile-nav-${viewName}`);
     if (mobileBtn) {
         mobileBtn.classList.add('active');
-    } else if (['hr', 'expenses', 'reports', 'settings'].includes(viewName)) {
+    } else if (['hr', 'expenses', 'reports', 'settings', 'kitchen'].includes(viewName)) {
         const moreNavBtn = document.getElementById('mobile-nav-more');
         if (moreNavBtn) moreNavBtn.classList.add('active');
     }
@@ -149,6 +153,7 @@ function switchView(viewName) {
 
     // تحديث محتوى الصفحة النشطة
     if (viewName === 'tables') renderTables();
+    if (viewName === 'kitchen') renderKitchenOrders();
     if (viewName === 'hr') renderHR();
     if (viewName === 'expenses') renderExpenses();
     if (viewName === 'reports') renderReports();
@@ -235,7 +240,14 @@ function loadERPData() {
         try { state.ordersHistory = JSON.parse(savedOrders); } catch(e) {}
     }
 
-    // 6. ذاكرة المنيو المحلي (Offline-First Menu Cache)
+    // 6. سجل طلبات أقسام المطبخ (KDS)
+    const savedKitchen = localStorage.getItem('codeart_pos_kitchen_orders');
+    if (savedKitchen) {
+        try { state.kitchenOrders = JSON.parse(savedKitchen); } catch(e) {}
+    }
+    if (!state.kitchenOrders) state.kitchenOrders = [];
+
+    // 7. ذاكرة المنيو المحلي (Offline-First Menu Cache)
     const cachedMenu = localStorage.getItem('codeart_pos_menu_cache');
     if (cachedMenu) {
         try {
@@ -937,7 +949,17 @@ function saveTableOrderPartial() {
     saveTables();
     renderTables();
 
-    showToast(`✅ تم حفظ الطلب بنجاح في "${targetTable.name}" كطلب معلق داخل الطاولة!`, 'success');
+    // إرسال الطلب المعلق للمطبخ فورياً
+    addOrderToKitchen({
+        id: targetTable.id,
+        order_id: targetTable.name,
+        table_number: targetTable.name,
+        order_type: 'dinein',
+        created_at: targetTable.openedAt,
+        items: targetTable.orderItems
+    });
+
+    showToast(`✅ تم حفظ الطلب بنجاح في "${targetTable.name}" كطلب معلق داخل الطاولة وإرساله للمطبخ!`, 'success');
 
     // إفراغ السلة للشاشة لتكون جاهزة لطلب زبون آخر
     clearCart();
@@ -1030,6 +1052,8 @@ async function submitOrder() {
 
     // طباعة الفاتورة الحرارية
     triggerPrint(orderPayload);
+    // إرسال الطلب فورياً لشاشات أقسام المطبخ (KDS)
+    addOrderToKitchen(orderPayload);
     showToast(`تم تسجيل الفاتورة #${orderId} بنجاح!`, 'success');
     clearCart();
     toggleMobileCart(false);
@@ -1227,6 +1251,322 @@ function deleteTable(tableId) {
     saveTables();
     renderTables();
     showToast('تم حذف الطاولة', 'info');
+}
+
+// =============================================================================
+// 🍳 نظام شاشات أقسام المطبخ وتجهيز الطلبات (Kitchen Display System - KDS)
+// =============================================================================
+const KITCHEN_DEPARTMENTS = {
+    all: { name: 'كل الأقسام', icon: 'fa-th-large', color: '#64748b' },
+    pizza: { name: 'قسم البيتزا والفطائر', icon: 'fa-pizza-slice', color: '#ea580c' },
+    grill: { name: 'قسم الشاورما والمشاوي', icon: 'fa-drumstick-bite', color: '#b91c1c' },
+    burger: { name: 'قسم البرجر والمقالي', icon: 'fa-hamburger', color: '#d97706' },
+    beverages: { name: 'قسم المشروبات والبار', icon: 'fa-glass-whiskey', color: '#0284c7' },
+    desserts: { name: 'قسم الحلويات', icon: 'fa-ice-cream', color: '#8b5cf6' },
+    main: { name: 'المطبخ العام / الوجبات', icon: 'fa-utensils', color: '#10b981' }
+};
+
+function getItemDepartment(item) {
+    if (!item) return 'main';
+    if (item.department) return item.department;
+
+    const text = ((item.name || '') + ' ' + (item.category_name || '') + ' ' + (item.category || '')).toLowerCase();
+
+    if (text.includes('بيتزا') || text.includes('pizza') || text.includes('فطائر') || text.includes('فطيرة') || text.includes('مناقيش') || text.includes('صفيحة') || text.includes('كالزوني')) {
+        return 'pizza';
+    }
+    if (text.includes('شاورما') || text.includes('مشاوي') || text.includes('كباب') || text.includes('شيش') || text.includes('كفتة') || text.includes('توشكا') || text.includes('ماريا') || text.includes('عرائس') || text.includes('لحم') || text.includes('شقف')) {
+        return 'grill';
+    }
+    if (text.includes('برجر') || text.includes('burger') || text.includes('زنجر') || text.includes('كرسبي') || text.includes('فاهيتا') || text.includes('ساندوتش') || text.includes('ساندويش') || text.includes('بطاطس') || text.includes('ناجتس') || text.includes('ستربس')) {
+        return 'burger';
+    }
+    if (text.includes('عصير') || text.includes('مشروب') || text.includes('بيبسي') || text.includes('كولا') || text.includes('سفن') || text.includes('مياه') || text.includes('ماء') || text.includes('قهوة') || text.includes('شاي') || text.includes('موهيتو') || text.includes('كوكتيل') || text.includes('سموذي') || text.includes('ميلك شيك')) {
+        return 'beverages';
+    }
+    if (text.includes('حلو') || text.includes('كيك') || text.includes('ايس كريم') || text.includes('وافل') || text.includes('كريب') || text.includes('كنافة') || text.includes('بسبوسة') || text.includes('تشيز كيك')) {
+        return 'desserts';
+    }
+    return 'main';
+}
+
+function saveKitchenOrders() {
+    localStorage.setItem('codeart_pos_kitchen_orders', JSON.stringify(state.kitchenOrders || []));
+    updateKitchenBadge();
+}
+
+function updateKitchenBadge() {
+    const badge = document.getElementById('kitchen-pending-badge');
+    if (!badge) return;
+    const pendingCount = (state.kitchenOrders || []).filter(o => o.status !== 'ready').length;
+    if (pendingCount > 0) {
+        badge.textContent = pendingCount;
+        badge.style.display = 'inline-block';
+    } else {
+        badge.style.display = 'none';
+    }
+}
+
+function addOrderToKitchen(order) {
+    if (!state.kitchenOrders) state.kitchenOrders = [];
+
+    const orderNum = order.order_id || order.id || Math.floor(100 + Math.random() * 900);
+    const existingIndex = state.kitchenOrders.findIndex(o => String(o.id) === String(order.id) || String(o.orderNumber) === String(orderNum));
+
+    const itemsRaw = order.items || state.cart || [];
+    const kitchenItems = itemsRaw.map((it, idx) => ({
+        id: it.id || idx,
+        name: it.name || 'صنف',
+        price: it.price || 0,
+        quantity: it.quantity || 1,
+        note: it.note || '',
+        variation: it.variation || '',
+        department: it.department || getItemDepartment(it),
+        ready: false
+    }));
+
+    const kdsOrder = {
+        id: order.id || Date.now(),
+        orderNumber: orderNum,
+        table: order.table_number || order.table || (state.orderType === 'dinein' ? (document.getElementById('table-num-input')?.value || 'طاولة 1') : ''),
+        orderType: order.order_type || state.orderType || 'dinein',
+        customerName: order.customer_name || state.customerName || '',
+        customerPhone: order.customer_phone || state.customerPhone || '',
+        openedAt: order.created_at || new Date().toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' }),
+        timestamp: Date.now(),
+        items: kitchenItems,
+        status: 'pending'
+    };
+
+    if (existingIndex >= 0) {
+        state.kitchenOrders[existingIndex] = kdsOrder;
+    } else {
+        state.kitchenOrders.unshift(kdsOrder);
+    }
+
+    saveKitchenOrders();
+    if (state.settings.soundAlert) {
+        try { testSound(); } catch(e) {}
+    }
+    if (state.currentView === 'kitchen') {
+        renderKitchenOrders();
+    }
+}
+
+function filterKitchenStation(stationKey) {
+    state.selectedKitchenStation = stationKey || 'all';
+    document.querySelectorAll('.kds-stations-bar .kds-station-tab').forEach(tab => {
+        if (tab.dataset.station === state.selectedKitchenStation) {
+            tab.classList.add('active');
+        } else {
+            tab.classList.remove('active');
+        }
+    });
+    renderKitchenOrders();
+}
+
+function renderKitchenOrders() {
+    const container = document.getElementById('kds-orders-container');
+    const emptyState = document.getElementById('empty-kds-state');
+    if (!container) return;
+
+    const currentStation = state.selectedKitchenStation || 'all';
+
+    // تحديث عدادات الأقسام في التبويبات
+    const counts = { all: 0, pizza: 0, grill: 0, burger: 0, beverages: 0, main: 0 };
+    (state.kitchenOrders || []).forEach(ord => {
+        if (ord.status !== 'ready') {
+            counts.all++;
+            const deptsInOrder = new Set(ord.items.map(it => it.department));
+            deptsInOrder.forEach(dept => {
+                if (counts[dept] !== undefined) counts[dept]++;
+            });
+        }
+    });
+
+    Object.keys(counts).forEach(k => {
+        const badge = document.getElementById(`count-station-${k}`);
+        if (badge) badge.textContent = counts[k];
+    });
+
+    // تصفية الطلبات بحسب القسم المختار
+    const filteredOrders = (state.kitchenOrders || []).filter(ord => {
+        if (ord.status === 'ready') return false;
+        if (currentStation === 'all') return true;
+        return ord.items.some(it => it.department === currentStation);
+    });
+
+    if (filteredOrders.length === 0) {
+        container.innerHTML = '';
+        if (emptyState) emptyState.style.display = 'block';
+        return;
+    }
+
+    if (emptyState) emptyState.style.display = 'none';
+    container.innerHTML = '';
+
+    filteredOrders.forEach(ord => {
+        const displayedItems = currentStation === 'all'
+            ? ord.items
+            : ord.items.filter(it => it.department === currentStation);
+
+        if (displayedItems.length === 0) return;
+
+        const minutesElapsed = Math.floor((Date.now() - (ord.timestamp || Date.now())) / 60000);
+        const isUrgent = minutesElapsed >= 15;
+        const allDeptItemsReady = displayedItems.every(it => it.ready);
+
+        const card = document.createElement('div');
+        card.className = `kds-card ${isUrgent ? 'urgent' : ''} ${allDeptItemsReady ? 'completed' : ''}`;
+
+        const typeLabels = {
+            dinein: { text: `طاولة: ${ord.table || '1'}`, cls: 'dinein' },
+            takeaway: { text: 'سفري (تيك أواي)', cls: 'takeaway' },
+            delivery: { text: `توصيل: ${ord.customerName || 'عميل'}`, cls: 'delivery' }
+        };
+        const typeInfo = typeLabels[ord.orderType] || typeLabels.dinein;
+
+        let itemsHtml = '';
+        displayedItems.forEach(it => {
+            const deptObj = KITCHEN_DEPARTMENTS[it.department] || KITCHEN_DEPARTMENTS.main;
+            itemsHtml += `
+                <div class="kds-item-row" style="${it.ready ? 'opacity: 0.5; text-decoration: line-through;' : ''}">
+                    <div class="kds-item-main">
+                        <div class="kds-item-qty-name">
+                            <span class="kds-qty-badge">${it.quantity}x</span>
+                            <span>${escapeHtml(it.name)} ${it.variation ? `<small style="color: #64748b;">(${escapeHtml(it.variation)})</small>` : ''}</span>
+                        </div>
+                        ${currentStation === 'all' ? `<span class="kds-item-station-tag">${deptObj.name}</span>` : ''}
+                    </div>
+                    ${it.note ? `<div class="kds-item-note"><i class="fas fa-comment-dots"></i> ملاحظة الشيف: ${escapeHtml(it.note)}</div>` : ''}
+                </div>
+            `;
+        });
+
+        card.innerHTML = `
+            <div class="kds-card-header">
+                <div class="kds-order-info">
+                    <span class="kds-order-num">#${ord.orderNumber}</span>
+                    <span class="kds-order-type-badge ${typeInfo.cls}">${typeInfo.text}</span>
+                </div>
+                <div class="kds-card-timer ${isUrgent ? 'urgent' : ''}">
+                    <i class="fas fa-stopwatch"></i>
+                    <span>منذ ${minutesElapsed} د</span>
+                </div>
+            </div>
+            <div class="kds-card-items">
+                ${itemsHtml}
+            </div>
+            <div class="kds-card-footer">
+                <button type="button" class="btn-kds-ready" onclick="markKitchenOrderDepartmentReady('${ord.id}', '${currentStation}')" style="${allDeptItemsReady ? 'background: #64748b;' : ''}">
+                    <i class="fas ${allDeptItemsReady ? 'fa-check-double' : 'fa-check'}"></i>
+                    <span>${allDeptItemsReady ? 'تم التجهيز مسبقاً' : (currentStation === 'all' ? 'تجهيز كل الطلب ✅' : 'تم تجهيز القسم ✅')}</span>
+                </button>
+                <button type="button" class="btn-kds-print" onclick="printDepartmentKitchenSlip('${ord.id}', '${currentStation}')" title="طباعة بون المطبخ لهذا القسم">
+                    <i class="fas fa-print"></i>
+                    <span>بون</span>
+                </button>
+            </div>
+        `;
+
+        container.appendChild(card);
+    });
+
+    updateKitchenBadge();
+}
+
+function markKitchenOrderDepartmentReady(orderId, departmentKey) {
+    const order = (state.kitchenOrders || []).find(o => String(o.id) === String(orderId));
+    if (!order) return;
+
+    if (departmentKey === 'all') {
+        order.items.forEach(it => it.ready = true);
+        order.status = 'ready';
+    } else {
+        order.items.forEach(it => {
+            if (it.department === departmentKey) {
+                it.ready = true;
+            }
+        });
+        if (order.items.every(it => it.ready)) {
+            order.status = 'ready';
+        }
+    }
+
+    saveKitchenOrders();
+    const deptTitle = KITCHEN_DEPARTMENTS[departmentKey]?.name || 'الطلب';
+    showToast(`تم وضع ${deptTitle} للطلب #${order.orderNumber} كجاهز!`, 'success');
+    renderKitchenOrders();
+}
+
+function clearCompletedKitchenOrders() {
+    state.kitchenOrders = (state.kitchenOrders || []).filter(o => o.status !== 'ready');
+    saveKitchenOrders();
+    showToast('تم مسح الطلبات المكتملة من شاشة المطبخ', 'info');
+    renderKitchenOrders();
+}
+
+function printDepartmentKitchenSlip(orderId, departmentKey) {
+    const order = (state.kitchenOrders || []).find(o => String(o.id) === String(orderId));
+    if (!order) return;
+
+    const currentStation = departmentKey || 'all';
+    const deptObj = KITCHEN_DEPARTMENTS[currentStation] || KITCHEN_DEPARTMENTS.main;
+    const items = currentStation === 'all' ? order.items : order.items.filter(it => it.department === currentStation);
+
+    if (items.length === 0) {
+        showToast('لا توجد أصناف تابعة لهذا القسم في هذا الطلب', 'warning');
+        return;
+    }
+
+    const printArea = document.getElementById('receipt-print-area');
+    if (!printArea) return;
+
+    let itemsRowsHtml = '';
+    items.forEach(it => {
+        itemsRowsHtml += `
+            <div style="border-bottom: 1px dashed #000; padding: 4px 0; margin-bottom: 4px;">
+                <div style="display: flex; justify-content: space-between; font-size: 15px; font-weight: 900;">
+                    <span>[${it.quantity}x] ${escapeHtml(it.name)}</span>
+                </div>
+                ${it.variation ? `<div style="font-size: 12px; font-weight: bold; color: #333;">(الحجم/النوع: ${escapeHtml(it.variation)})</div>` : ''}
+                ${it.note ? `<div style="font-size: 13px; font-weight: bold; background: #eee; padding: 2px 4px; margin-top: 2px; border: 1px solid #000;">* ملاحظة: ${escapeHtml(it.note)}</div>` : ''}
+            </div>
+        `;
+    });
+
+    const is58mm = state.settings.printerWidth === '58mm';
+    const paperClass = is58mm ? 'receipt-58mm' : '';
+
+    const slipHtml = `
+        <div class="receipt-container ${paperClass}" style="font-family: 'Tajawal', sans-serif; color: #000; padding: 2mm;">
+            <div style="text-align: center; border-bottom: 2px solid #000; padding-bottom: 4px; margin-bottom: 6px;">
+                <div style="font-size: 18px; font-weight: 900;">بون تحضير المطبخ 🍳</div>
+                <div style="display: inline-block; border: 2px solid #000; font-size: 14px; font-weight: 900; padding: 2px 8px; margin-top: 3px;">
+                    ${deptObj.name}
+                </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; margin-bottom: 4px;">
+                <span>طلب رقم: #${order.orderNumber}</span>
+                <span>${order.table ? `طاولة: ${order.table}` : (order.orderType === 'takeaway' ? 'سفري' : 'توصيل')}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 6px; border-bottom: 1px solid #000; padding-bottom: 4px;">
+                <span>الوقت: ${order.openedAt}</span>
+                <span>التاريخ: ${new Date().toLocaleDateString('ar-SA')}</span>
+            </div>
+            <div style="margin-bottom: 8px;">
+                ${itemsRowsHtml}
+            </div>
+            <div style="text-align: center; border-top: 1px dashed #000; padding-top: 4px; font-size: 11px; font-weight: bold;">
+                إجمالي أصناف القسم: ${items.reduce((s, it) => s + it.quantity, 0)}
+            </div>
+        </div>
+    `;
+
+    printArea.innerHTML = slipHtml;
+    setTimeout(() => {
+        window.print();
+    }, 100);
 }
 
 // =============================================================================
@@ -2641,31 +2981,66 @@ function resetSystemDataConfirm() {
 // =============================================================================
 let deferredInstallPrompt = null;
 
+function isAppInstalled() {
+    const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+                         window.navigator.standalone === true ||
+                         (typeof document !== 'undefined' && document.referrer && document.referrer.includes('android-app://')) ||
+                         localStorage.getItem('codeart_pwa_installed') === 'true';
+    return !!isStandalone;
+}
+
+function updateInstallButtonVisibility() {
+    const isInstalled = isAppInstalled();
+    const btn = document.getElementById('btn-install-pwa');
+    const mobileBtn = document.getElementById('mobile-btn-install-pwa');
+
+    if (isInstalled) {
+        if (document.body) document.body.classList.add('standalone-app');
+        if (btn) btn.style.setProperty('display', 'none', 'important');
+        if (mobileBtn) mobileBtn.style.setProperty('display', 'none', 'important');
+    } else {
+        if (btn && (!window.matchMedia || !window.matchMedia('(display-mode: standalone)').matches)) {
+            // Keep default display or inline-flex if prompt is available
+            btn.style.display = 'inline-flex';
+        }
+    }
+}
+
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredInstallPrompt = e;
-    const btn = document.getElementById('btn-install-pwa');
-    if (btn) btn.style.display = 'inline-flex';
+    if (!isAppInstalled()) {
+        const btn = document.getElementById('btn-install-pwa');
+        if (btn) btn.style.display = 'inline-flex';
+    }
 });
 
 window.addEventListener('appinstalled', () => {
     deferredInstallPrompt = null;
-    const btn = document.getElementById('btn-install-pwa');
-    if (btn) btn.style.display = 'none';
+    localStorage.setItem('codeart_pwa_installed', 'true');
+    updateInstallButtonVisibility();
     showToast('تم تثبيت التطبيق بنجاح على جهازك!', 'success');
 });
 
 function installDesktopApp() {
+    if (isAppInstalled()) {
+        showToast('التطبيق مثبت ويعمل بالفعل!', 'info');
+        updateInstallButtonVisibility();
+        return;
+    }
     if (deferredInstallPrompt) {
         deferredInstallPrompt.prompt();
         deferredInstallPrompt.userChoice.then((choiceResult) => {
             if (choiceResult.outcome === 'accepted') {
+                localStorage.setItem('codeart_pwa_installed', 'true');
+                updateInstallButtonVisibility();
                 showToast('جاري تثبيت التطبيق على جهازك...', 'success');
             }
             deferredInstallPrompt = null;
         });
     } else if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
         showToast('التطبيق مثبت ويعمل بالفعل كنافذة مستقلة!', 'info');
+        updateInstallButtonVisibility();
     } else {
         openModal('install-guide-modal');
     }
@@ -2741,5 +3116,15 @@ window.toggleMobileMoreMenu = toggleMobileMoreMenu;
 window.filterTablesByZone = filterTablesByZone;
 window.installDesktopApp = installDesktopApp;
 window.saveTableOrderPartial = saveTableOrderPartial;
+
+// دوال شاشة ونظام المطبخ (Kitchen Display System - KDS)
+window.filterKitchenStation = filterKitchenStation;
+window.markKitchenOrderDepartmentReady = markKitchenOrderDepartmentReady;
+window.clearCompletedKitchenOrders = clearCompletedKitchenOrders;
+window.printDepartmentKitchenSlip = printDepartmentKitchenSlip;
+window.renderKitchenOrders = renderKitchenOrders;
+window.isAppInstalled = isAppInstalled;
+window.updateInstallButtonVisibility = updateInstallButtonVisibility;
+
 
 
