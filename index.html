@@ -18,7 +18,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <!-- ملف الأنماط والتنسيق -->
-    <link rel="stylesheet" href="css/style.css?v=4.0">
+    <link rel="stylesheet" href="css/style.css?v=4.1">
 </head>
 <body>
 
@@ -32,10 +32,10 @@
             <div class="brand-info">
                 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                     <h1 id="brand-store-name" style="margin: 0;">كاشير المطعم السحابي</h1>
-                    <span id="header-store-badge" class="store-tenant-pill" onclick="openModal('store-switch-modal')" title="المطعم النشط حالياً - اضغط للتبديل أو إضافة مطعم">
+                    <span id="header-store-badge" class="store-tenant-pill" onclick="openStoreDetailsModal()" title="بيانات المطعم النشط والرابط المخصص">
                         <i class="fas fa-store-alt"></i>
                         <span id="header-tenant-slug">main</span>
-                        <i class="fas fa-chevron-down" style="font-size: 0.62rem; opacity: 0.7;"></i>
+                        <i class="fas fa-info-circle" style="font-size: 0.68rem; opacity: 0.8;"></i>
                     </span>
                 </div>
                 <div id="connection-badge" class="api-status-badge" onclick="openModal('settings-modal')" title="اضغط لضبط الربط بالسيرفر">
@@ -815,8 +815,8 @@
                             <p style="margin: 2px 0 0; font-size: 0.8rem; color: #475569;">شارك هذا الرابط مع كاشير أو موظفي المطعم لفتح النظام فورياً ببيانات ومنيو هذا المطعم</p>
                         </div>
                     </div>
-                    <button type="button" class="btn-icon-text" style="padding: 7px 12px; font-size: 0.82rem; background: #fff;" onclick="openModal('store-switch-modal')">
-                        <i class="fas fa-exchange-alt"></i> تبديل المطعم / فتح فرع آخر
+                    <button type="button" class="btn-icon-text" style="padding: 7px 12px; font-size: 0.82rem; background: #fff;" onclick="openRestaurantOnboardingModal(false)">
+                        <i class="fas fa-plus-circle" style="color: #0284c7;"></i> ربط مطعم جديد بالـ API
                     </button>
                 </div>
 
@@ -1847,46 +1847,121 @@
     </div>
 </div>
 
-<!-- نافذة التبديل بين المطاعم وإضافة مطعم جديد (Multi-Store Switcher) -->
-<div class="modal-overlay" id="store-switch-modal">
+<!-- نافذة تفاصيل المطعم الحالي ومشاركة الرابط المخصص -->
+<div class="modal-overlay" id="store-details-modal">
     <div class="modal-card" style="max-width: 480px; width: 95vw;">
         <div class="modal-header">
-            <h3><i class="fas fa-store-alt" style="color: var(--primary);"></i> نظام إدارة المطاعم المتعددة</h3>
-            <button class="modal-close-btn" onclick="closeModal('store-switch-modal')">&times;</button>
+            <h3><i class="fas fa-store-alt" style="color: var(--primary);"></i> مطعمك النشط حالياً</h3>
+            <button class="modal-close-btn" onclick="closeModal('store-details-modal')">&times;</button>
         </div>
-        <div class="modal-body" style="padding: 16px;">
-            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 12px; margin-bottom: 14px; font-size: 0.85rem; color: #166534;">
-                <div style="font-weight: 800; margin-bottom: 2px;"><i class="fas fa-check-circle"></i> المطعم الحالي: <span id="switch-modal-current-store" style="color: #0f172a;">-</span></div>
-                <div style="font-size: 0.78rem; color: #15803d;">كل مطعم له رابط مخصص وقاعدة بيانات معزولة تماماً للأصناف، الطاولات، والمبيعات.</div>
+        <div class="modal-body" style="padding: 18px;">
+            <div style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin-bottom: 16px; text-align: center;">
+                <div style="width: 52px; height: 52px; border-radius: 50%; background: #e0f2fe; color: #0284c7; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin: 0 auto 10px;">
+                    <i class="fas fa-utensils"></i>
+                </div>
+                <h3 id="modal-detail-store-name" style="margin: 0 0 4px; color: #0f172a; font-weight: 800; font-size: 1.15rem;">-</h3>
+                <div style="font-size: 0.82rem; color: #64748b;">
+                    معرّف المطعم (Slug): <span id="modal-detail-store-slug" style="font-weight: 700; color: #0284c7;">-</span>
+                </div>
             </div>
 
             <div class="form-group" style="margin-bottom: 14px;">
-                <label style="font-weight: 700; font-size: 0.88rem; display: block; margin-bottom: 6px;">
-                    اسم أو معرّف المطعم المراد فتحه (Store ID / Slug):
+                <label style="font-weight: 700; font-size: 0.85rem; display: block; margin-bottom: 6px;">
+                    <i class="fas fa-link" style="color: #0284c7;"></i> الرابط المباشر لكاشير هذا المطعم:
                 </label>
                 <div style="display: flex; gap: 8px;">
-                    <input type="text" id="input-switch-store-slug" class="form-control ltr-input" placeholder="مثال: syrian_house أو pizza_hut">
-                    <button type="button" class="btn-checkout" style="flex: initial; padding: 8px 16px; font-size: 0.85rem;" onclick="handleConfirmSwitchStore()">
-                        <i class="fas fa-sign-in-alt"></i> فتح المطعم
+                    <input type="text" id="modal-detail-store-url" readonly class="form-control ltr-input" style="font-weight: 700; color: #0284c7; font-size: 0.85rem;">
+                    <button type="button" class="btn-checkout" style="flex: initial; padding: 8px 14px;" onclick="copyStoreShareLink()" title="نسخ الرابط">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    <button type="button" class="btn-checkout" style="flex: initial; padding: 8px 14px; background: linear-gradient(135deg, #16a34a, #15803d);" onclick="shareStoreWhatsApp()" title="مشاركة عبر واتساب">
+                        <i class="fab fa-whatsapp"></i>
                     </button>
                 </div>
-                <small style="color: #64748b; font-size: 0.75rem; margin-top: 4px; display: block;">
-                    إذا كان المطعم مسجلاً مسبقاً سيتم فتح بياناته، وإذا كان اسماً جديداً سيتم إنشاء مساحة كاشير فارغة ومستقلة له فوراً.
-                </small>
             </div>
 
-            <!-- قائمة المطاعم السابقة التي فُتحت على هذا الجهاز -->
-            <div id="recent-stores-container" style="margin-top: 14px; border-top: 1px dashed var(--border-color); padding-top: 12px;">
-                <label style="font-weight: 700; font-size: 0.82rem; color: #475569; display: block; margin-bottom: 8px;">
-                    <i class="fas fa-history"></i> المطاعم التي تم استخدامها مؤخراً على هذا الجهاز:
-                </label>
-                <div id="recent-stores-list" style="display: flex; flex-wrap: wrap; gap: 6px;">
-                    <!-- يتم توليدها ديناميكياً -->
+            <div style="border-top: 1px dashed var(--border-color); padding-top: 14px; margin-top: 14px;">
+                <div style="font-size: 0.78rem; color: #64748b; margin-bottom: 10px; line-height: 1.4;">
+                    <i class="fas fa-shield-alt" style="color: #10b981;"></i> تم إلغاء التبديل السريع العشوائي لحماية بيانات المطاعم. لربط مطعم آخر يلزم إدخال بيانات الـ API المعتمدة للمطعم الجديد.
                 </div>
+                <button type="button" class="btn-icon-text" style="justify-content: center; width: 100%; padding: 10px; color: #0f172a; border-color: #cbd5e1; font-weight: 700;" onclick="closeModal('store-details-modal'); openRestaurantOnboardingModal(false)">
+                    <i class="fas fa-lock" style="color: #0284c7;"></i> ربط أو فتح مطعم آخر (يتطلب إدخال بيانات الـ API)
+                </button>
             </div>
         </div>
         <div class="modal-footer">
-            <button type="button" class="btn-icon-text" onclick="closeModal('store-switch-modal')">إلغاء</button>
+            <button type="button" class="btn-icon-text" onclick="closeModal('store-details-modal')">إغلاق</button>
+        </div>
+    </div>
+</div>
+
+<!-- نافذة تهيئة وتوليد نظام الكاشير للمطعم (Restaurant Onboarding & API Wizard) -->
+<div class="modal-overlay" id="restaurant-onboarding-modal">
+    <div class="modal-card" style="max-width: 520px; width: 95vw;">
+        <div class="modal-header">
+            <h3 style="display: flex; align-items: center; gap: 8px;">
+                <i class="fas fa-magic" style="color: var(--primary);"></i>
+                <span id="onboard-modal-title">تهيئة وتوليد نظام كاشير المطعم</span>
+            </h3>
+            <button class="modal-close-btn" id="onboard-modal-close-btn" onclick="closeModal('restaurant-onboarding-modal')">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 18px;">
+            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 12px; margin-bottom: 16px; font-size: 0.85rem; color: #0369a1; line-height: 1.5;">
+                <i class="fas fa-info-circle"></i>
+                <strong>توليد تلقائي معزول:</strong>
+                يرجى إدخال اسم المطعم وبيانات الـ API الخاصة به ليتم إنشاء رابط كاشير مخصص ومساحة تخزين مستقلة تماماً للأصناف والطاولات والمبيعات.
+            </div>
+
+            <form id="form-restaurant-onboard" onsubmit="event.preventDefault(); submitRestaurantOnboarding();">
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label style="font-weight: 700; font-size: 0.88rem; display: block; margin-bottom: 4px;">
+                        <i class="fas fa-utensils"></i> اسم المطعم: <span style="color: #ef4444;">*</span>
+                    </label>
+                    <input type="text" id="onboard-store-name" class="form-control" placeholder="مثال: مطعم بيتزا السلطان" required oninput="autoGenerateStoreSlug()">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label style="font-weight: 700; font-size: 0.88rem; display: block; margin-bottom: 4px;">
+                        <i class="fas fa-globe"></i> رابط الـ API الخاص بالنظام والسيرفر: <span style="color: #ef4444;">*</span>
+                    </label>
+                    <input type="url" id="onboard-api-url" class="form-control ltr-input" placeholder="https://codeart.almagd555.com/api.php" value="https://codeart.almagd555.com/api.php" required>
+                    <small style="color: #64748b; font-size: 0.74rem;">رابط السيرفر الذي يحتوي على الأصناف والأقسام وتستقبل عليه الطلبات.</small>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div class="form-group">
+                        <label style="font-weight: 700; font-size: 0.88rem; display: block; margin-bottom: 4px;">
+                            <i class="fas fa-user-tag"></i> اسم مستخدم الـ API: <span style="color: #ef4444;">*</span>
+                        </label>
+                        <input type="text" id="onboard-api-user" class="form-control ltr-input" placeholder="مثال: pizza-palace" required oninput="autoGenerateStoreSlug()">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-weight: 700; font-size: 0.88rem; display: block; margin-bottom: 4px;">
+                            <i class="fas fa-key"></i> مفتاح الربط (API Token): <span style="color: #ef4444;">*</span>
+                        </label>
+                        <input type="text" id="onboard-api-token" class="form-control ltr-input" placeholder="الرمز السري للـ API" required>
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px;">
+                    <label style="font-weight: 700; font-size: 0.82rem; color: #334155; display: block; margin-bottom: 4px;">
+                        <i class="fas fa-link"></i> معرّف الرابط المخصص للمطعم (Slug):
+                    </label>
+                    <input type="text" id="onboard-store-slug" class="form-control ltr-input" placeholder="pizza_palace" required style="font-weight: 700; color: #0284c7;" oninput="this.dataset.manualEdited='true'; updateOnboardSlugPreview(this.value)">
+                    <div style="margin-top: 6px; font-size: 0.76rem; color: #64748b;">
+                        الرابط المخصص سيكون: <span id="onboard-slug-preview" style="font-weight: 700; color: #0284c7; direction: ltr; display: inline-block;">https://codeart.almagd555.com/pos/?store=...</span>
+                    </div>
+                </div>
+
+                <div id="onboard-error-msg" style="display: none; background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; border-radius: 8px; padding: 10px; font-size: 0.82rem; margin-bottom: 12px;"></div>
+
+                <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
+                    <button type="button" class="btn-icon-text" id="onboard-cancel-btn" onclick="closeModal('restaurant-onboarding-modal')">إلغاء</button>
+                    <button type="submit" class="btn-checkout" id="onboard-submit-btn" style="padding: 10px 22px; font-size: 0.92rem;">
+                        <i class="fas fa-rocket"></i> توليد وتشغيل كاشير المطعم
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -2009,7 +2084,7 @@
 </div>
 
 <!-- ملف الجافاسكريبت الرئيسي المطور -->
-<script src="js/app.js?v=4.0"></script>
+<script src="js/app.js?v=4.1"></script>
 
 <!-- تسجيل الـ Service Worker لتشغيل PWA -->
 <script>

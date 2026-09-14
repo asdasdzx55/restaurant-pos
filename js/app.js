@@ -49,10 +49,14 @@ function detectStoreTenant() {
         tenant = tenant.trim().toLowerCase().replace(/[^\w\u0600-\u06FF\-]/g, '_');
         try {
             localStorage.setItem('codeart_pos_active_tenant', tenant);
-            addRecentStore(tenant);
         } catch (e) {}
+        window.__isExplicitStore = true;
         return tenant;
     }
+
+    // إذا دخل بدون أي رابط مخصص ?store=
+    window.__isExplicitStore = false;
+    window.__needsStoreOnboarding = true;
 
     try {
         tenant = localStorage.getItem('codeart_pos_active_tenant') || 'main';
@@ -60,26 +64,6 @@ function detectStoreTenant() {
         tenant = 'main';
     }
     return tenant;
-}
-
-function addRecentStore(storeSlug) {
-    if (!storeSlug || storeSlug === 'main') return;
-    try {
-        let recents = JSON.parse(localStorage.getItem('codeart_pos_recent_stores') || '[]');
-        if (!recents.includes(storeSlug)) {
-            recents.unshift(storeSlug);
-            recents = recents.slice(0, 10);
-            localStorage.setItem('codeart_pos_recent_stores', JSON.stringify(recents));
-        }
-    } catch (e) {}
-}
-
-function getRecentStores() {
-    try {
-        return JSON.parse(localStorage.getItem('codeart_pos_recent_stores') || '[]');
-    } catch (e) {
-        return [];
-    }
 }
 
 const currentTenantId = detectStoreTenant();
@@ -198,12 +182,18 @@ document.addEventListener('DOMContentLoaded', () => {
     setOrderType(state.orderType || 'dinein');
     updateUIConnectionStatus(false, 'جاري فحص الاتصال...');
 
-    // بدء المزامنة والاستماع للطلبات
-    if (state.settings.apiUrl && state.settings.user && state.settings.token) {
+    // تفعيل قناة المزامنة الحية الفورية بين الشاشات والنوافذ (BroadcastChannel)
+    initPosBroadcastChannel();
+
+    // فحص ما إذا تم فتح التطبيق بدون رابط مطعم مخصص أو بدون إعدادات مسبقة
+    const hasConfiguredApi = state.settings.apiUrl && state.settings.user && state.settings.token && state.settings.user !== 'main';
+    if (window.__needsStoreOnboarding && !hasConfiguredApi) {
+        setTimeout(() => openRestaurantOnboardingModal(true), 150);
+    } else if (hasConfiguredApi) {
         syncMenuData();
         startOrderPolling();
     } else {
-        openModal('settings-modal');
+        setTimeout(() => openRestaurantOnboardingModal(true), 150);
     }
 
     // تحديث الإحصائيات الأولية
@@ -453,7 +443,10 @@ function loadERPData() {
     }
 }
 
-function saveTables() { setTenantStorage('codeart_pos_tables', JSON.stringify(state.tables)); }
+function saveTables() {
+    setTenantStorage('codeart_pos_tables', JSON.stringify(state.tables));
+    broadcastPosEvent('TABLE_STATUS_CHANGED', {});
+}
 function saveEmployees() { setTenantStorage('codeart_pos_employees', JSON.stringify(state.employees)); }
 function savePayroll() { setTenantStorage('codeart_pos_payroll', JSON.stringify(state.payroll)); }
 function saveExpenses() { setTenantStorage('codeart_pos_expenses', JSON.stringify(state.expenses)); }
@@ -513,10 +506,14 @@ function applySettingsToDOM() {
     const slugInput = document.getElementById('setting-store-slug');
     if (slugInput) slugInput.value = state.settings.storeSlug || state.tenantId || 'main';
 
-    const modalCurStore = document.getElementById('switch-modal-current-store');
-    if (modalCurStore) modalCurStore.textContent = `${storeTitle} (${state.tenantId})`;
+    const modalDetailName = document.getElementById('modal-detail-store-name');
+    if (modalDetailName) modalDetailName.textContent = storeTitle;
 
-    renderRecentStoresList();
+    const modalDetailSlug = document.getElementById('modal-detail-store-slug');
+    if (modalDetailSlug) modalDetailSlug.textContent = state.tenantId || 'main';
+
+    const modalDetailUrl = document.getElementById('modal-detail-store-url');
+    if (modalDetailUrl) modalDetailUrl.value = getStoreShareUrl();
 
     document.getElementById('input-api-url').value = state.settings.apiUrl || '';
     document.getElementById('input-username').value = state.settings.user || '';
@@ -579,26 +576,182 @@ function shareStoreWhatsApp() {
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
 }
 
-function switchRestaurantStore(slug) {
-    if (!slug) return;
-    const clean = slug.trim().toLowerCase().replace(/[^\w\u0600-\u06FF\-]/g, '_');
-    if (typeof window !== 'undefined') {
-        const url = new URL(window.location.href);
-        url.search = '';
-        url.hash = '';
-        url.searchParams.set('store', clean);
-        window.location.href = url.toString();
-    }
+function openStoreDetailsModal() {
+    const nameEl = document.getElementById('modal-detail-store-name');
+    const slugEl = document.getElementById('modal-detail-store-slug');
+    const urlEl = document.getElementById('modal-detail-store-url');
+
+    if (nameEl) nameEl.textContent = state.settings.storeName || 'كاشير المطعم';
+    if (slugEl) slugEl.textContent = state.tenantId || 'main';
+    if (urlEl) urlEl.value = getStoreShareUrl();
+
+    openModal('store-details-modal');
 }
 
-function handleConfirmSwitchStore() {
-    const input = document.getElementById('input-switch-store-slug');
-    if (!input || !input.value.trim()) {
-        showToast('يرجى كتابة اسم أو معرّف المطعم أولاً', 'warning');
+function openRestaurantOnboardingModal(isMandatory = false) {
+    const modal = document.getElementById('restaurant-onboarding-modal');
+    if (!modal) return;
+
+    const closeBtn = document.getElementById('onboard-modal-close-btn');
+    const cancelBtn = document.getElementById('onboard-cancel-btn');
+    const errorBox = document.getElementById('onboard-error-msg');
+    const title = document.getElementById('onboard-modal-title');
+    const submitBtn = document.getElementById('onboard-submit-btn');
+
+    if (errorBox) {
+        errorBox.textContent = '';
+        errorBox.style.display = 'none';
+    }
+
+    if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-rocket"></i> توليد وتشغيل كاشير المطعم';
+    }
+
+    if (isMandatory) {
+        if (closeBtn) closeBtn.style.display = 'none';
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        if (title) title.textContent = 'تهيئة وتوليد نظام الكاشير لمطعمك';
+    } else {
+        if (closeBtn) closeBtn.style.display = 'block';
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
+        if (title) title.textContent = 'ربط وتوليد مطعم جديد بالـ API';
+    }
+
+    const apiInput = document.getElementById('onboard-api-url');
+    if (apiInput && !apiInput.value) {
+        apiInput.value = (typeof defaultApiUrl !== 'undefined') ? defaultApiUrl : 'https://codeart.almagd555.com/api.php';
+    }
+
+    updateOnboardSlugPreview(document.getElementById('onboard-store-slug')?.value || '');
+    openModal('restaurant-onboarding-modal');
+}
+
+function autoGenerateStoreSlug() {
+    const slugInput = document.getElementById('onboard-store-slug');
+    if (!slugInput || slugInput.dataset.manualEdited === 'true') return;
+    const user = document.getElementById('onboard-api-user')?.value?.trim() || '';
+    const name = document.getElementById('onboard-store-name')?.value?.trim() || '';
+    let base = user || name;
+    if (!base) {
+        slugInput.value = '';
+        updateOnboardSlugPreview('');
         return;
     }
-    const slug = input.value.trim();
-    switchRestaurantStore(slug);
+    let slug = base.toLowerCase().replace(/\s+/g, '_').replace(/[^\w\u0600-\u06FF\-]/g, '');
+    slugInput.value = slug;
+    updateOnboardSlugPreview(slug);
+}
+
+function updateOnboardSlugPreview(slug) {
+    const preview = document.getElementById('onboard-slug-preview');
+    if (!preview) return;
+    const cleanSlug = (slug || '...').trim().toLowerCase().replace(/[^\w\u0600-\u06FF\-]/g, '_');
+    const base = (typeof window !== 'undefined') ? (window.location.origin + window.location.pathname) : 'https://codeart.almagd555.com/pos/';
+    preview.textContent = `${base}?store=${cleanSlug}`;
+}
+
+async function submitRestaurantOnboarding() {
+    const nameInput = document.getElementById('onboard-store-name');
+    const apiUrlInput = document.getElementById('onboard-api-url');
+    const userInput = document.getElementById('onboard-api-user');
+    const tokenInput = document.getElementById('onboard-api-token');
+    const slugInput = document.getElementById('onboard-store-slug');
+    const errorBox = document.getElementById('onboard-error-msg');
+    const submitBtn = document.getElementById('onboard-submit-btn');
+
+    if (errorBox) {
+        errorBox.textContent = '';
+        errorBox.style.display = 'none';
+    }
+
+    const storeName = nameInput ? nameInput.value.trim() : '';
+    const apiUrl = apiUrlInput ? apiUrlInput.value.trim() : '';
+    const user = userInput ? userInput.value.trim() : '';
+    const token = tokenInput ? tokenInput.value.trim() : '';
+    let slug = slugInput ? slugInput.value.trim().toLowerCase().replace(/[^\w\u0600-\u06FF\-]/g, '_') : '';
+
+    if (!storeName || !apiUrl || !user || !token || !slug) {
+        if (errorBox) {
+            errorBox.textContent = 'يرجى إكمال جميع الحقول المطلوبة: اسم المطعم، رابط الـ API، اسم المستخدم، والرمز السري (Token).';
+            errorBox.style.display = 'block';
+        }
+        return;
+    }
+
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري فحص الـ API والتحقق من الصلاحيات...';
+    }
+
+    try {
+        // التحقق من صحة مفاتيح الـ API فورياً مع السيرفر
+        const testUrl = new URL(apiUrl);
+        testUrl.searchParams.set('action', 'get_items');
+        testUrl.searchParams.set('user', user);
+        testUrl.searchParams.set('token', token);
+
+        const res = await fetch(testUrl.toString(), { method: 'GET' });
+        if (!res.ok) {
+            let msg = `فشل الاتصال بالـ API (رمز الاستجابة: ${res.status})`;
+            try {
+                const errJson = await res.json();
+                if (errJson.message) msg = errJson.message;
+            } catch (e) {}
+            throw new Error(msg);
+        }
+
+        const data = await res.json();
+        if (data.status !== 'success') {
+            throw new Error(data.message || 'بيانات الـ API أو التوكن غير صحيحة.');
+        }
+
+        // حفظ إعدادات المطعم الجديد المعزولة
+        const newSettings = {
+            storeName: storeName,
+            storeSlug: slug,
+            apiUrl: apiUrl,
+            user: user,
+            token: token,
+            currency: 'ج.م',
+            taxRate: 14,
+            serviceFee: 12,
+            autoPrint: true,
+            pollInterval: 5000
+        };
+
+        localStorage.setItem(`codeart_pos_settings_${slug}`, JSON.stringify(newSettings));
+        localStorage.setItem('codeart_pos_active_tenant', slug);
+
+        // حفظ قائمة الأصناف في الكاش المحلي للمطعم
+        if (data.categories || data.items) {
+            localStorage.setItem(`codeart_pos_menu_cache_${slug}`, JSON.stringify({
+                categories: data.categories || [],
+                items: data.items || []
+            }));
+        }
+
+        showToast(`🎉 تم توليد نظام الكاشير لمطعم "${storeName}" بنجاح!`, 'success');
+
+        // الانتقال للرابط المخصص للمطعم
+        setTimeout(() => {
+            const destUrl = new URL(window.location.href);
+            destUrl.search = '';
+            destUrl.hash = '';
+            destUrl.searchParams.set('store', slug);
+            window.location.href = destUrl.toString();
+        }, 600);
+
+    } catch (err) {
+        if (errorBox) {
+            errorBox.textContent = `❌ خطأ في التحقق من الـ API: ${err.message}`;
+            errorBox.style.display = 'block';
+        }
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-rocket"></i> توليد وتشغيل كاشير المطعم';
+        }
+    }
 }
 
 function saveStoreSlugChange() {
@@ -632,26 +785,67 @@ function saveStoreSlugChange() {
 
     state.settings.storeSlug = newSlug;
     saveSettingsToStorage();
-    switchRestaurantStore(newSlug);
+    
+    if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        url.search = '';
+        url.hash = '';
+        url.searchParams.set('store', newSlug);
+        window.location.href = url.toString();
+    }
 }
 
-function renderRecentStoresList() {
-    const container = document.getElementById('recent-stores-list');
-    if (!container) return;
-    const recents = getRecentStores();
-    if (!recents || recents.length === 0) {
-        container.innerHTML = '<span style="color: #94a3b8; font-size: 0.78rem;">لا توجد مطاعم أخرى مسجلة مؤخراً</span>';
-        return;
-    }
+// =============================================================================
+// محرك المزامنة الحية الفورية (Live Cross-Screen Broadcast Engine)
+// =============================================================================
+let posBroadcastChannel = null;
 
-    container.innerHTML = recents.map(slug => {
-        const isCurrent = slug === state.tenantId;
-        return `
-            <button type="button" class="btn-icon-text" style="font-size: 0.78rem; padding: 4px 10px; ${isCurrent ? 'border-color: #0284c7; background: #e0f2fe; color: #0369a1; font-weight: 800;' : ''}" onclick="switchRestaurantStore('${slug}')">
-                <i class="fas fa-store"></i> ${escapeHtml(slug)} ${isCurrent ? ' (الحالي)' : ''}
-            </button>
-        `;
-    }).join('');
+function initPosBroadcastChannel() {
+    try {
+        if (typeof BroadcastChannel !== 'undefined' && state && state.tenantId) {
+            posBroadcastChannel = new BroadcastChannel(`codeart_pos_channel_${state.tenantId}`);
+            posBroadcastChannel.onmessage = (event) => {
+                handleBroadcastSyncEvent(event.data);
+            };
+        }
+    } catch (e) {}
+}
+
+function broadcastPosEvent(type, payload) {
+    if (posBroadcastChannel) {
+        try {
+            posBroadcastChannel.postMessage({ type, payload, timestamp: Date.now() });
+        } catch (e) {}
+    }
+}
+
+function handleBroadcastSyncEvent(data) {
+    if (!data || !data.type) return;
+    if (data.type === 'NEW_ORDER') {
+        playNotificationChime();
+        if (data.payload) {
+            if (!state.kitchenOrders) state.kitchenOrders = [];
+            const exists = state.kitchenOrders.some(o => String(o.id) === String(data.payload.id));
+            if (!exists) {
+                state.kitchenOrders.unshift(data.payload);
+                saveKitchenOrders();
+                if (state.currentView === 'kitchen') renderKitchenOrders();
+            }
+        }
+        showToast('🔔 طلب جديد متزامن من شاشة أخرى!', 'info');
+    } else if (data.type === 'KITCHEN_ORDER_STATUS') {
+        const savedKitchen = getTenantStorage('codeart_pos_kitchen_orders');
+        if (savedKitchen) {
+            try { state.kitchenOrders = JSON.parse(savedKitchen); } catch(e) {}
+            if (state.currentView === 'kitchen') renderKitchenOrders();
+        }
+    } else if (data.type === 'TABLE_STATUS_CHANGED') {
+        const savedTables = getTenantStorage('codeart_pos_tables');
+        if (savedTables) {
+            try { state.tables = JSON.parse(savedTables); } catch(e) {}
+            if (state.currentView === 'tables') renderTablesGrid();
+        }
+    }
 }
 
 function applyDemoPreset(key) {
@@ -1917,6 +2111,8 @@ function addOrderToKitchen(order) {
     }
 
     saveKitchenOrders();
+    broadcastPosEvent('NEW_ORDER', kdsOrder);
+
     if (state.settings.soundAlert) {
         try { testSound(); } catch(e) {}
     }
@@ -2066,6 +2262,7 @@ function markKitchenOrderDepartmentReady(orderId, departmentKey) {
     }
 
     saveKitchenOrders();
+    broadcastPosEvent('KITCHEN_ORDER_STATUS', {});
     const deptTitle = KITCHEN_DEPARTMENTS[departmentKey]?.name || 'الطلب';
     showToast(`تم وضع ${deptTitle} للطلب #${order.orderNumber} كجاهز!`, 'success');
     renderKitchenOrders();
@@ -2074,6 +2271,7 @@ function markKitchenOrderDepartmentReady(orderId, departmentKey) {
 function clearCompletedKitchenOrders() {
     state.kitchenOrders = (state.kitchenOrders || []).filter(o => o.status !== 'ready');
     saveKitchenOrders();
+    broadcastPosEvent('KITCHEN_ORDER_STATUS', {});
     showToast('تم مسح الطلبات المكتملة من شاشة المطبخ', 'info');
     renderKitchenOrders();
 }
@@ -3310,6 +3508,8 @@ function handleIncomingOrders(orders) {
         newOrders.forEach(order => {
             state.printedOrderIds.add(order.id);
             showOrderNotificationToast(order);
+            // إرسال الطلب الوارد فوراً لشاشة المطبخ KDS
+            addOrderToKitchen(order);
             if (state.settings.autoPrint) {
                 setTimeout(() => {
                     printAndAcknowledgeOrder(order);
@@ -4352,11 +4552,14 @@ window.handleTamDeleteTable = handleTamDeleteTable;
 window.transferTable = transferTable;
 window.openEditTableModal = openEditTableModal;
 
-// دوال إدارة وتخصيص روابط المطاعم المتعددة (Multi-Store & Tenant URLs)
+// دوال إدارة وتخصيص وتوليد روابط المطاعم المتعددة (Multi-Store Onboarding & Sync)
 window.copyStoreShareLink = copyStoreShareLink;
 window.shareStoreWhatsApp = shareStoreWhatsApp;
-window.switchRestaurantStore = switchRestaurantStore;
-window.handleConfirmSwitchStore = handleConfirmSwitchStore;
 window.saveStoreSlugChange = saveStoreSlugChange;
-window.renderRecentStoresList = renderRecentStoresList;
 window.getStoreShareUrl = getStoreShareUrl;
+window.openStoreDetailsModal = openStoreDetailsModal;
+window.openRestaurantOnboardingModal = openRestaurantOnboardingModal;
+window.autoGenerateStoreSlug = autoGenerateStoreSlug;
+window.updateOnboardSlugPreview = updateOnboardSlugPreview;
+window.submitRestaurantOnboarding = submitRestaurantOnboarding;
+window.broadcastPosEvent = broadcastPosEvent;
