@@ -126,11 +126,19 @@ function switchView(viewName) {
     // تحديث أزرار شريط التنقل السفلي للهواتف الذكية
     document.querySelectorAll('.mobile-nav-btn').forEach(btn => btn.classList.remove('active'));
     const mobileBtn = document.getElementById(`mobile-nav-${viewName}`);
-    if (mobileBtn) mobileBtn.classList.add('active');
+    if (mobileBtn) {
+        mobileBtn.classList.add('active');
+    } else if (['hr', 'expenses', 'reports', 'settings'].includes(viewName)) {
+        const moreNavBtn = document.getElementById('mobile-nav-more');
+        if (moreNavBtn) moreNavBtn.classList.add('active');
+    }
 
-    // إغلاق درج سلة الموبايل عند التنقل
+    // إغلاق درج سلة الموبايل وقائمة المزيد عند التنقل
     if (typeof toggleMobileCart === 'function') {
         toggleMobileCart(false);
+    }
+    if (typeof toggleMobileMoreMenu === 'function') {
+        toggleMobileMoreMenu(false);
     }
 
     // إظهار الصفحة المطلوبة
@@ -750,6 +758,24 @@ function toggleMobileCart(open) {
     }
 }
 
+// التحكم في إظهار وإغلاق قائمة همبرجر المنبثقة للموبايل (Mobile More Sheet Drawer)
+function toggleMobileMoreMenu(open) {
+    const sheet = document.getElementById('mobile-more-sheet');
+    const overlay = document.getElementById('mobile-more-overlay');
+    if (!sheet || !overlay) return;
+
+    const isOpen = (open !== undefined) ? open : !sheet.classList.contains('active');
+    if (isOpen) {
+        sheet.classList.add('active');
+        overlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    } else {
+        sheet.classList.remove('active');
+        overlay.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+}
+
 function updateTotals(subtotal) {
     if (subtotal === undefined) {
         subtotal = state.cart.reduce((sum, it) => sum + (it.price * it.quantity), 0);
@@ -801,7 +827,7 @@ function updateTotals(subtotal) {
     const totalEl = document.getElementById('summary-total');
     if (totalEl) totalEl.textContent = `${grandTotal.toFixed(2)} ${state.settings.currency}`;
 
-    // تحديث شريط السلة العائم للموبايل
+    // تحديث شريط السلة العائم للموبايل فقط (محمي تماماً من الظهور على شاشات اللابتوب والكمبيوتر)
     const totalCount = state.cart.reduce((sum, it) => sum + it.quantity, 0);
     const mobileCartBar = document.getElementById('mobile-cart-bar');
     const mobileCartCount = document.getElementById('mobile-cart-count');
@@ -811,7 +837,8 @@ function updateTotals(subtotal) {
     if (mobileCartTotal) mobileCartTotal.textContent = `${grandTotal.toFixed(2)} ${state.settings.currency}`;
 
     if (mobileCartBar) {
-        if (totalCount > 0 && state.currentView === 'pos') {
+        const isMobileScreen = window.innerWidth <= 768;
+        if (totalCount > 0 && state.currentView === 'pos' && isMobileScreen) {
             mobileCartBar.style.display = 'flex';
         } else {
             mobileCartBar.style.display = 'none';
@@ -2601,12 +2628,14 @@ function installDesktopApp() {
         deferredInstallPrompt.prompt();
         deferredInstallPrompt.userChoice.then((choiceResult) => {
             if (choiceResult.outcome === 'accepted') {
-                showToast('جاري تثبيت التطبيق على الويندوز...', 'success');
+                showToast('جاري تثبيت التطبيق على جهازك...', 'success');
             }
             deferredInstallPrompt = null;
         });
+    } else if (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) {
+        showToast('التطبيق مثبت ويعمل بالفعل كنافذة مستقلة!', 'info');
     } else {
-        alert('💡 لتثبيت التطبيق على الويندوز:\n\n1. في متصفحك (Google Chrome أو Microsoft Edge)، اضغط على أيقونة (تثبيت التطبيق 📥) في شريط العنوان بالأعلى.\n2. أو اضغط على القائمة (⋮) ثم اختر "تطبيقات (Apps)" -> "تثبيت هذا الموقع كتطبيق".\n\nسيعمل كنافذة برنامج مستقلة على سطح المكتب وقائمة ابدأ بدون أشرطة المتصفح!');
+        openModal('install-guide-modal');
     }
 }
 
@@ -2658,9 +2687,26 @@ window.addEventListener('offline', () => {
     showToast('انقطع الاتصال بالإنترنت، التطبيق يعمل بكامل كفاءته بدون توقف (Offline-First)', 'warning');
 });
 
+// مراقبة أبعاد الشاشة لضمان عدم تسرب أي عناصر موبايل للكمبيوتر
+window.addEventListener('resize', () => {
+    const mobileCartBar = document.getElementById('mobile-cart-bar');
+    if (window.innerWidth > 768) {
+        if (mobileCartBar) mobileCartBar.style.display = 'none';
+        if (typeof toggleMobileMoreMenu === 'function') toggleMobileMoreMenu(false);
+        if (typeof toggleMobileCart === 'function') toggleMobileCart(false);
+    } else {
+        if (typeof updateTotals === 'function' && state && state.cart) {
+            updateTotals();
+        }
+    }
+});
+
 // إتاحة الدوال الجديدة للنطاق العام (Global Scope)
 window.setPaymentMethod = setPaymentMethod;
 window.toggleMobileCart = toggleMobileCart;
+window.toggleMobileMoreMenu = toggleMobileMoreMenu;
 window.filterTablesByZone = filterTablesByZone;
+window.installDesktopApp = installDesktopApp;
+window.saveTableOrderPartial = saveTableOrderPartial;
 
 

@@ -18,7 +18,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <!-- ملف الأنماط والتنسيق -->
-    <link rel="stylesheet" href="css/style.css?v=3.4">
+    <link rel="stylesheet" href="css/style.css?v=3.5">
 </head>
 <body>
 
@@ -881,7 +881,7 @@
     </main>
 
     <!-- =========================================================================
-         شريط الملاحة السفلي المخصص للهواتف الذكية (Mobile Bottom Navigation Bar)
+         شريط الملاحة السفلي المخصص للهواتف الذكية (4 أزرار متناسقة ومريحة للمس)
          ========================================================================= -->
     <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
         <button type="button" class="mobile-nav-btn active" id="mobile-nav-pos" onclick="switchView('pos')" title="الكاشير">
@@ -896,23 +896,71 @@
             <i class="fas fa-utensils"></i>
             <span>الأصناف</span>
         </button>
-        <button type="button" class="mobile-nav-btn" id="mobile-nav-hr" onclick="switchView('hr')" title="الموظفين">
-            <i class="fas fa-users-cog"></i>
-            <span>الموظفين</span>
-        </button>
-        <button type="button" class="mobile-nav-btn" id="mobile-nav-expenses" onclick="switchView('expenses')" title="المصاريف">
-            <i class="fas fa-wallet"></i>
-            <span>المصاريف</span>
-        </button>
-        <button type="button" class="mobile-nav-btn" id="mobile-nav-reports" onclick="switchView('reports')" title="التقارير">
-            <i class="fas fa-chart-line"></i>
-            <span>التقارير</span>
-        </button>
-        <button type="button" class="mobile-nav-btn" id="mobile-nav-settings" onclick="switchView('settings')" title="الإعدادات">
-            <i class="fas fa-cog"></i>
-            <span>الإعدادات</span>
+        <button type="button" class="mobile-nav-btn" id="mobile-nav-more" onclick="toggleMobileMoreMenu()" title="المزيد من الأنظمة">
+            <i class="fas fa-bars"></i>
+            <span>المزيد</span>
         </button>
     </nav>
+
+    <!-- قائمة همبرجر المنبثقة للموبايل (Mobile More Drawer Sheet) -->
+    <div class="mobile-more-overlay" id="mobile-more-overlay" onclick="toggleMobileMoreMenu(false)"></div>
+    <div class="mobile-more-sheet" id="mobile-more-sheet">
+        <div class="more-sheet-handle"></div>
+        <div class="more-sheet-header">
+            <div class="more-sheet-title"><i class="fas fa-th-large"></i> باقي الأنظمة والخدمات</div>
+            <button type="button" class="btn-close-more-sheet" onclick="toggleMobileMoreMenu(false)">&times;</button>
+        </div>
+        <div class="more-sheet-grid">
+            <button type="button" class="more-menu-item" onclick="switchView('hr'); toggleMobileMoreMenu(false);">
+                <div class="more-item-icon blue"><i class="fas fa-users-cog"></i></div>
+                <div class="more-item-info">
+                    <div class="more-item-title">الموظفين والرواتب</div>
+                    <div class="more-item-desc">إدارة الرواتب والسلف والبدلات</div>
+                </div>
+                <i class="fas fa-chevron-left more-item-arrow"></i>
+            </button>
+            <button type="button" class="more-menu-item" onclick="switchView('expenses'); toggleMobileMoreMenu(false);">
+                <div class="more-item-icon amber"><i class="fas fa-wallet"></i></div>
+                <div class="more-item-info">
+                    <div class="more-item-title">المصاريف والمشتريات</div>
+                    <div class="more-item-desc">تسجيل المصاريف وسندات الصرف</div>
+                </div>
+                <i class="fas fa-chevron-left more-item-arrow"></i>
+            </button>
+            <button type="button" class="more-menu-item" onclick="switchView('reports'); toggleMobileMoreMenu(false);">
+                <div class="more-item-icon green"><i class="fas fa-chart-line"></i></div>
+                <div class="more-item-info">
+                    <div class="more-item-title">التقارير المالية</div>
+                    <div class="more-item-desc">صافي الأرباح وجرد الوردية</div>
+                </div>
+                <i class="fas fa-chevron-left more-item-arrow"></i>
+            </button>
+            <button type="button" class="more-menu-item" onclick="switchView('settings'); toggleMobileMoreMenu(false);">
+                <div class="more-item-icon purple"><i class="fas fa-cog"></i></div>
+                <div class="more-item-info">
+                    <div class="more-item-title">إعدادات النظام والمطعم</div>
+                    <div class="more-item-desc">الربط والضرائب والطباعة</div>
+                </div>
+                <i class="fas fa-chevron-left more-item-arrow"></i>
+            </button>
+            <button type="button" class="more-menu-item" onclick="installDesktopApp(); toggleMobileMoreMenu(false);">
+                <div class="more-item-icon emerald"><i class="fas fa-download"></i></div>
+                <div class="more-item-info">
+                    <div class="more-item-title">تثبيت البرنامج على الجهاز</div>
+                    <div class="more-item-desc">تشغيل كبرنامج مستقل بدون متصفح</div>
+                </div>
+                <i class="fas fa-chevron-left more-item-arrow"></i>
+            </button>
+            <button type="button" class="more-menu-item" onclick="openModal('incoming-orders-modal'); toggleMobileMoreMenu(false);">
+                <div class="more-item-icon red"><i class="fas fa-receipt"></i></div>
+                <div class="more-item-info">
+                    <div class="more-item-title">طلبات المنيو المباشرة</div>
+                    <div class="more-item-desc">الطلبات الواردة من العملاء أونلاين</div>
+                </div>
+                <i class="fas fa-chevron-left more-item-arrow"></i>
+            </button>
+        </div>
+    </div>
 </div>
 
 <!-- =========================================================================
@@ -1397,8 +1445,61 @@
     </div>
 </div>
 
+<!-- نافذة إرشادات ومساعد تثبيت التطبيق -->
+<div class="modal-overlay" id="install-guide-modal">
+    <div class="modal-card" style="max-width: 520px;">
+        <div class="modal-header">
+            <h3><i class="fas fa-download" style="color: #10b981;"></i> تثبيت برنامج كاشير المطعم</h3>
+            <button class="modal-close-btn" onclick="closeModal('install-guide-modal')">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 18px;">
+            <div style="text-align: center; margin-bottom: 16px;">
+                <div style="width: 54px; height: 54px; background: linear-gradient(135deg, #10b981, #059669); color: #fff; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.6rem; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);">
+                    <i class="fas fa-desktop"></i>
+                </div>
+                <h4 style="margin-top: 10px; font-weight: 800; font-size: 1.1rem; color: #0f172a;">تشغيل التطبيق كنافذة برنامج مستقلة</h4>
+                <p style="font-size: 0.85rem; color: #64748b; margin-top: 4px;">يعمل كبرنامج كامل على سطح المكتب وقائمة ابدأ بدون أشرطة المتصفح وبطباعة صامتة فورية</p>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <!-- خيار 1: تشغيل فوري عبر ملف الاختصار الصامت للويندوز -->
+                <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                        <span style="font-weight: 800; font-size: 0.9rem; color: #0f172a;"><i class="fab fa-windows" style="color: #0284c7;"></i> لأجهزة الكمبيوتر والويندوز:</span>
+                        <span style="background: #dcfce7; color: #166534; font-size: 0.72rem; font-weight: 700; padding: 2px 6px; border-radius: 4px;">موصى به</span>
+                    </div>
+                    <p style="font-size: 0.8rem; color: #475569; margin-bottom: 8px;">تنزيل ملف تشغيل سطح المكتب (يفتح كنافذة كاملة ويفعل الطباعة الصامتة للفواتير بدون معاينة كروم):</p>
+                    <a href="CODEART_POS_Launcher.bat" download="تشغيل_كاشير_المطعم.bat" class="btn-checkout" style="text-decoration: none; text-align: center; font-size: 0.85rem; padding: 8px 12px; background: linear-gradient(135deg, #0284c7, #0369a1);">
+                        <i class="fas fa-download"></i> تنزيل اختصار سطح المكتب المباشر (.bat)
+                    </a>
+                </div>
+
+                <!-- خيار 2: تثبيت PWA من المتصفح مباشرة -->
+                <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px;">
+                    <span style="font-weight: 800; font-size: 0.9rem; color: #0f172a;"><i class="fab fa-chrome" style="color: #ea580c;"></i> عبر المتصفح (Chrome / Edge):</span>
+                    <p style="font-size: 0.8rem; color: #475569; margin-top: 4px;">
+                        اضغط على أيقونة <strong>(تثبيت التطبيق 📥)</strong> أو <strong>(فتح في التطبيق ↗️)</strong> الموجودة مباشرة في <strong>شريط عنوان المتصفح بالأعلى بجانب الرابط</strong>.
+                    </p>
+                </div>
+
+                <!-- خيار 3: للهواتف الذكية -->
+                <div style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 12px;">
+                    <span style="font-weight: 800; font-size: 0.9rem; color: #0f172a;"><i class="fas fa-mobile-alt" style="color: #7c3aed;"></i> لهواتف أندرويد وآيفون:</span>
+                    <p style="font-size: 0.8rem; color: #475569; margin-top: 4px;">
+                        • أندرويد: اضغط زر القائمة (⋮) ثم <strong>"تثبيت التطبيق"</strong> أو "إضافة للشاشة الرئيسية".<br>
+                        • آيفون (Safari): اضغط زر المشاركة (⎙) ثم <strong>"إضافة إلى الشاشة الرئيسية"</strong>.
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn-checkout" style="flex: initial; padding: 8px 24px;" onclick="closeModal('install-guide-modal')">حسناً، فهمت</button>
+        </div>
+    </div>
+</div>
+
 <!-- ملف الجافاسكريبت الرئيسي المطور -->
-<script src="js/app.js?v=3.3"></script>
+<script src="js/app.js?v=3.5"></script>
 
 <!-- تسجيل الـ Service Worker لتشغيل PWA -->
 <script>
