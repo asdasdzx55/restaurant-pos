@@ -18,7 +18,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
     <!-- ملف الأنماط والتنسيق -->
-    <link rel="stylesheet" href="css/style.css?v=3.2">
+    <link rel="stylesheet" href="css/style.css?v=3.3">
 </head>
 <body>
 
@@ -125,7 +125,18 @@
         </section>
 
         <!-- قسم سلة المبيعات والمحاسبة (اليسار) -->
-        <aside class="cart-section">
+        <aside class="cart-section" id="pos-cart-section">
+            <!-- رأس السلة للشاشات الصغيرة (Mobile Drawer Header) -->
+            <div class="mobile-cart-drawer-header">
+                <div class="drawer-title">
+                    <i class="fas fa-shopping-bag" style="color: var(--primary);"></i>
+                    <span>سلة الطلب والمحاسبة</span>
+                </div>
+                <button type="button" class="btn-close-mobile-cart" onclick="toggleMobileCart(false)" title="إغلاق السلة">
+                    <i class="fas fa-chevron-down"></i>
+                </button>
+            </div>
+
             <!-- اختيار نوع الطلب -->
             <div class="order-type-tabs">
                 <button class="type-tab active" data-type="dinein">
@@ -167,14 +178,40 @@
                 <span style="font-size: 0.8rem;">اضغط على أي صنف لإضافته للطلب</span>
             </div>
 
+            <!-- اختيار طريقة الدفع السريعة -->
+            <div class="payment-method-picker">
+                <div class="pay-picker-label">
+                    <i class="fas fa-wallet" style="color: var(--primary);"></i>
+                    <span>طريقة الدفع:</span>
+                </div>
+                <div class="payment-method-buttons">
+                    <button type="button" class="pay-method-btn active" id="pay-method-cash" onclick="setPaymentMethod('cash')">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <span>💵 كاش</span>
+                    </button>
+                    <button type="button" class="pay-method-btn" id="pay-method-card" onclick="setPaymentMethod('card')">
+                        <i class="fas fa-credit-card"></i>
+                        <span>💳 شبكة / بطاقة</span>
+                    </button>
+                </div>
+            </div>
+
             <!-- ملخص الحساب -->
             <div class="cart-summary">
                 <div class="summary-row">
                     <span>المجموع الجزئي:</span>
                     <span id="summary-subtotal">0.00 ر.س</span>
                 </div>
+                <div class="summary-row" id="row-table-service" style="display: none;">
+                    <span id="label-table-service">ضريبة / خدمة الصالة:</span>
+                    <span id="summary-table-service" style="color: #b45309; font-weight: 700;">+0.00 ر.س</span>
+                </div>
+                <div class="summary-row" id="row-card-fee" style="display: none;">
+                    <span id="label-card-fee">رسوم دفع بالشبكة:</span>
+                    <span id="summary-card-fee" style="color: #0284c7; font-weight: 700;">+0.00 ر.س</span>
+                </div>
                 <div class="summary-row">
-                    <span>ضريبة القيمة المضافة:</span>
+                    <span id="label-tax-percent">ضريبة القيمة المضافة:</span>
                     <span id="summary-tax">0.00 ر.س</span>
                 </div>
                 <div class="summary-row grand-total">
@@ -197,6 +234,19 @@
                 </div>
             </div>
         </aside>
+
+        <!-- شريط السلة العائم المخصص للهواتف الذكية (Mobile Floating Cart Bar) -->
+        <div class="mobile-floating-cart-bar" id="mobile-cart-bar" onclick="toggleMobileCart(true)">
+            <div class="cart-bar-info">
+                <div class="cart-bar-badge"><i class="fas fa-shopping-bag"></i> <span id="mobile-cart-count">0</span> أصناف</div>
+                <div class="cart-bar-total" id="mobile-cart-total">0.00 ر.س</div>
+            </div>
+            <button class="cart-bar-btn" type="button">
+                <span>عرض السلة</span>
+                <i class="fas fa-chevron-up"></i>
+            </button>
+        </div>
+        <div class="mobile-cart-overlay" id="mobile-cart-overlay" onclick="toggleMobileCart(false)"></div>
     </main>
 
     <!-- =====================================================================
@@ -247,6 +297,30 @@
                     </div>
                     <div class="kpi-icon-box amber"><i class="fas fa-receipt"></i></div>
                 </div>
+            </div>
+
+            <!-- شريط تصنيفات ومناطق الطاولات (Indoor / Outdoor / VIP) -->
+            <div class="table-zones-bar">
+                <button class="zone-tab active" id="zone-tab-all" onclick="filterTablesByZone('all')">
+                    <i class="fas fa-th-large"></i>
+                    <span>🌟 كل الطاولات</span>
+                    <span class="zone-count" id="zone-count-all">0</span>
+                </button>
+                <button class="zone-tab" id="zone-tab-indoor" onclick="filterTablesByZone('indoor')">
+                    <i class="fas fa-home"></i>
+                    <span>🏠 صالة داخلية (Indoor)</span>
+                    <span class="zone-count" id="zone-count-indoor">0</span>
+                </button>
+                <button class="zone-tab" id="zone-tab-outdoor" onclick="filterTablesByZone('outdoor')">
+                    <i class="fas fa-tree"></i>
+                    <span>🌳 جلسات خارجية (Outdoor)</span>
+                    <span class="zone-count" id="zone-count-outdoor">0</span>
+                </button>
+                <button class="zone-tab" id="zone-tab-vip" onclick="filterTablesByZone('vip')">
+                    <i class="fas fa-crown"></i>
+                    <span>👑 VIP وعوائل</span>
+                    <span class="zone-count" id="zone-count-vip">0</span>
+                </button>
             </div>
 
             <!-- شبكة الطاولات المرئية -->
@@ -672,7 +746,7 @@
                         </div>
                         <div class="form-grid-2">
                             <div class="form-group">
-                                <label>نسبة ضريبة القيمة المضافة (%):</label>
+                                <label>نسبة ضريبة القيمة المضافة العامة (%):</label>
                                 <input type="number" id="setting-tax-percent" class="form-control" min="0" step="0.5" value="15">
                             </div>
                             <div class="form-group">
@@ -681,6 +755,18 @@
                                     <option value="80mm">80 ملم (طابعات الكاشير القياسية الكبيرة - الموصى به)</option>
                                     <option value="58mm">58 ملم (طابعات الفواتير الصغيرة والمحمولة)</option>
                                 </select>
+                            </div>
+                        </div>
+                        <div class="form-grid-2">
+                            <div class="form-group">
+                                <label>ضريبة / رسم خدمة الطاولات والصالة (%):</label>
+                                <input type="number" id="setting-table-service-percent" class="form-control" min="0" step="0.5" value="0" placeholder="0%">
+                                <small style="color: #64748b; font-size: 0.76rem;">تطبق تلقائياً على طلبات الصالة والطاولات فقط</small>
+                            </div>
+                            <div class="form-group">
+                                <label>رسوم وعمولة الدفع بالشبكة / البطاقة (%):</label>
+                                <input type="number" id="setting-card-fee-percent" class="form-control" min="0" step="0.5" value="0" placeholder="0%">
+                                <small style="color: #64748b; font-size: 0.76rem;">تطبق تلقائياً عند اختيار الدفع بالبطاقة/الشبكة</small>
                             </div>
                         </div>
                         <div class="form-group">
@@ -798,6 +884,32 @@
             </div>
         </div>
     </main>
+
+    <!-- =========================================================================
+         شريط الملاحة السفلي المخصص للهواتف الذكية (Mobile Bottom Navigation Bar)
+         ========================================================================= -->
+    <nav class="mobile-bottom-nav" id="mobile-bottom-nav">
+        <button type="button" class="mobile-nav-btn active" id="mobile-nav-pos" onclick="switchView('pos')">
+            <i class="fas fa-cash-register"></i>
+            <span>الكاشير</span>
+        </button>
+        <button type="button" class="mobile-nav-btn" id="mobile-nav-tables" onclick="switchView('tables')">
+            <i class="fas fa-chair"></i>
+            <span>الطاولات</span>
+        </button>
+        <button type="button" class="mobile-nav-btn" id="mobile-nav-items" onclick="switchView('items')">
+            <i class="fas fa-utensils"></i>
+            <span>المنيو</span>
+        </button>
+        <button type="button" class="mobile-nav-btn" id="mobile-nav-reports" onclick="switchView('reports')">
+            <i class="fas fa-chart-line"></i>
+            <span>التقارير</span>
+        </button>
+        <button type="button" class="mobile-nav-btn" id="mobile-nav-settings" onclick="switchView('settings')">
+            <i class="fas fa-cog"></i>
+            <span>الإعدادات</span>
+        </button>
+    </nav>
 </div>
 
 <!-- =========================================================================
@@ -826,6 +938,15 @@
                 <div class="form-group">
                     <label>اسم أو رقم الطاولة:</label>
                     <input type="text" id="input-new-table-name" required placeholder="مثال: طاولة 5 أو VIP 2">
+                </div>
+                <div class="form-group">
+                    <label>منطقة وقسم الطاولة:</label>
+                    <select id="input-new-table-zone" class="form-control" style="width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-family: inherit;">
+                        <option value="indoor">🏠 صالة داخلية (Indoor)</option>
+                        <option value="outdoor">🌳 جلسات خارجية / تراس (Outdoor)</option>
+                        <option value="vip">👑 صالة خاصة / VIP</option>
+                        <option value="family">👨‍👩‍👧‍👦 قسم العوائل (Family)</option>
+                    </select>
                 </div>
                 <div class="form-group">
                     <label>عدد الكراسي / المقاعد:</label>
@@ -1124,6 +1245,17 @@
                     </div>
                 </div>
 
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div class="form-group">
+                        <label>رسوم خدمة الطاولات (%):</label>
+                        <input type="number" id="input-table-service-percent" min="0" step="0.5" value="0" placeholder="0%">
+                    </div>
+                    <div class="form-group">
+                        <label>رسوم دفع بالشبكة (%):</label>
+                        <input type="number" id="input-card-fee-percent" min="0" step="0.5" value="0" placeholder="0%">
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label>جملة تذييل الفاتورة:</label>
                     <input type="text" id="input-receipt-footer" placeholder="شكراً لزيارتكم ونتمنى لكم وجبة شهية!">
@@ -1263,7 +1395,7 @@
 </div>
 
 <!-- ملف الجافاسكريبت الرئيسي المطور -->
-<script src="js/app.js?v=3.2"></script>
+<script src="js/app.js?v=3.3"></script>
 
 <!-- تسجيل الـ Service Worker لتشغيل PWA -->
 <script>

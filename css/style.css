@@ -736,6 +736,57 @@ body {
   font-size: 0.85rem;
 }
 
+/* اختيار طريقة الدفع في السلة */
+.payment-method-picker {
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-top: 1px solid var(--border-color);
+}
+
+.pay-picker-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.payment-method-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.pay-method-btn {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  background: #fff;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.pay-method-btn:hover {
+  background: #f1f5f9;
+  color: var(--text-main);
+}
+
+.pay-method-btn.active {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
 .cart-summary {
   background: #f8fafc;
   border-top: 1px solid var(--border-color);
@@ -835,6 +886,74 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 16px;
 }
+
+/* شريط تصنيفات ومناطق الطاولات (Indoor / Outdoor / VIP) */
+.table-zones-bar {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 0 12px 0;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border-color);
+  -webkit-overflow-scrolling: touch;
+}
+
+.zone-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.zone-tab:hover {
+  background: #f8fafc;
+  color: var(--text-main);
+}
+
+.zone-tab.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: 0 3px 8px rgba(37, 99, 235, 0.35);
+}
+
+.zone-tab .zone-count {
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.zone-tab.active .zone-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #fff;
+}
+
+/* شارات مناطق الطاولة */
+.table-zone-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-right: 4px;
+}
+.table-zone-badge.indoor { background: #e0f2fe; color: #0369a1; }
+.table-zone-badge.outdoor { background: #dcfce7; color: #15803d; }
+.table-zone-badge.vip { background: #fef3c7; color: #b45309; }
+.table-zone-badge.family { background: #f3e8ff; color: #7e22ce; }
 
 .table-card {
   background: var(--bg-card);
@@ -1600,6 +1719,414 @@ body {
   border-top: 1px dashed #000;
   padding-top: 5px;
   color: #333;
+}
+
+/* ==========================================================================
+   تنسيقات شريط الملاحة السفلي والسلة للهواتف الذكية (Mobile App-like Styles)
+   ========================================================================== */
+.mobile-cart-drawer-header {
+  display: none;
+}
+
+.mobile-floating-cart-bar {
+  display: none;
+}
+
+.mobile-cart-overlay {
+  display: none;
+}
+
+.mobile-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --header-h: 56px;
+    --bottom-nav-h: 62px;
+  }
+
+  body {
+    overflow-x: hidden;
+  }
+
+  .app-container {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  /* 1. تكييف الهيدر العلوي للموبايل */
+  .app-header {
+    padding: 0 10px;
+    height: var(--header-h);
+  }
+
+  .brand-logo {
+    width: 34px;
+    height: 34px;
+    font-size: 1rem;
+    border-radius: 8px;
+  }
+
+  .brand-info h1 {
+    font-size: 0.88rem;
+    max-width: 130px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .api-status-badge {
+    font-size: 0.7rem;
+    padding: 2px 6px;
+  }
+
+  .header-actions {
+    gap: 4px;
+  }
+
+  .header-actions .btn-icon-text {
+    padding: 6px;
+  }
+
+  /* إخفاء أزرار الملاحة العلوية واستبدالها بالشريط السفلي */
+  .main-nav-tabs {
+    display: none !important;
+  }
+
+  .btn-install-pwa span {
+    display: none;
+  }
+
+  .btn-install-pwa {
+    padding: 6px 8px;
+  }
+
+  /* 2. شريط الملاحة السفلي الثابت (Mobile Bottom Navigation Bar) */
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--bottom-nav-h);
+    background: #ffffff;
+    border-top: 1px solid var(--border-color);
+    box-shadow: 0 -3px 14px rgba(0, 0, 0, 0.09);
+    z-index: 100;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 4px;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .mobile-nav-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 6px 2px;
+    transition: all 0.15s ease;
+    border-radius: 8px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .mobile-nav-btn i {
+    font-size: 1.15rem;
+    transition: transform 0.15s ease;
+  }
+
+  .mobile-nav-btn.active {
+    color: var(--primary);
+  }
+
+  .mobile-nav-btn.active i {
+    transform: scale(1.15);
+  }
+
+  /* 3. تكييف صفحات النظام والمحتوى الداخلي مع الشريط السفلي */
+  .view-page {
+    height: calc(100dvh - var(--header-h) - var(--bottom-nav-h));
+    padding-bottom: 0;
+  }
+
+  .page-inner-scroll {
+    padding: 12px;
+    padding-bottom: 30px;
+  }
+
+  .page-header-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .page-title h2 {
+    font-size: 1.05rem;
+  }
+
+  .page-title p {
+    font-size: 0.78rem;
+  }
+
+  /* شبكة الـ KPIs على الموبايل */
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .kpi-card {
+    padding: 10px;
+  }
+
+  .kpi-val {
+    font-size: 1.1rem;
+  }
+
+  .kpi-icon-box {
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
+  }
+
+  /* 4. شاشة نقطة البيع POS على الموبايل */
+  #view-pos {
+    flex-direction: column;
+    position: relative;
+  }
+
+  .menu-section {
+    border-left: none;
+    width: 100%;
+    height: 100%;
+  }
+
+  .filter-bar {
+    padding: 10px;
+    gap: 8px;
+  }
+
+  .items-grid-wrapper {
+    padding: 10px;
+    padding-bottom: 90px; /* مسافة للشريط العائم والنافبار */
+  }
+
+  /* شبكة الأصناف: عمودين متناسقين جداً مثل تطبيقات التوصيل */
+  .items-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .item-card {
+    border-radius: 12px;
+  }
+
+  .item-img-box {
+    height: 95px;
+  }
+
+  .item-title {
+    font-size: 0.85rem;
+    height: 2.4em;
+  }
+
+  .item-price {
+    font-size: 0.92rem;
+  }
+
+  /* شريط السلة العائم فوق النافبار السفلي */
+  .mobile-floating-cart-bar {
+    display: flex;
+    position: fixed;
+    bottom: calc(var(--bottom-nav-h) + 10px);
+    left: 12px;
+    right: 12px;
+    background: linear-gradient(135deg, var(--primary), #1d4ed8);
+    color: #fff;
+    border-radius: 16px;
+    padding: 10px 16px;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+    z-index: 90;
+    cursor: pointer;
+    transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s;
+  }
+
+  .cart-bar-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .cart-bar-badge {
+    background: rgba(255, 255, 255, 0.25);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .cart-bar-total {
+    font-size: 1.05rem;
+    font-weight: 900;
+  }
+
+  .cart-bar-btn {
+    background: #ffffff;
+    color: var(--primary);
+    border: none;
+    border-radius: 10px;
+    padding: 6px 12px;
+    font-size: 0.82rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+
+  /* السلة المنزلقة كنافذة سفلية ملء الشاشة (Bottom Sheet Drawer) */
+  .cart-section {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100% !important;
+    height: 88dvh !important;
+    max-height: 88dvh;
+    background: #ffffff;
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    transform: translateY(105%);
+    transition: transform 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .cart-section.mobile-open {
+    transform: translateY(0);
+  }
+
+  .mobile-cart-drawer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-bottom: 1px solid var(--border-color);
+    border-radius: 20px 20px 0 0;
+  }
+
+  .mobile-cart-drawer-header .drawer-title {
+    font-size: 0.95rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-close-mobile-cart {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #e2e8f0;
+    border: none;
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 1rem;
+  }
+
+  .mobile-cart-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(2px);
+    z-index: 999;
+  }
+
+  .mobile-cart-overlay.active {
+    display: block;
+  }
+
+  /* 5. شاشة الطاولات على الموبايل */
+  .table-zones-bar {
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+  }
+
+  .zone-tab {
+    padding: 6px 12px;
+    font-size: 0.78rem;
+  }
+
+  .tables-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+  }
+
+  .table-card {
+    padding: 10px;
+    min-height: 155px;
+  }
+
+  .table-number-title {
+    font-size: 0.95rem;
+  }
+
+  .table-order-amount {
+    font-size: 1.05rem;
+  }
+
+  .table-card-actions {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .table-btn {
+    padding: 6px 4px;
+    font-size: 0.72rem;
+  }
+
+  /* 6. بطاقات الإعدادات */
+  .settings-sections-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .form-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  /* 7. النوافذ المنبثقة على الموبايل */
+  .modal-card {
+    width: 95% !important;
+    max-width: 95% !important;
+    margin: 8px auto;
+    border-radius: 16px;
+    max-height: 90vh;
+  }
+
+  .reports-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media print {

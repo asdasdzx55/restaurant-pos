@@ -43,6 +43,8 @@ const state = {
         storeAddress: 'حلب-الصاخور-سوق الخضرامن الطرف القبلي اول شارع المكاتب من فوق',
         currency: 'ر.س',
         taxPercent: 15,
+        tableServicePercent: 0,
+        cardFeePercent: 0,
         printerWidth: '80mm',
         autoPrint: true,
         soundAlert: true,
@@ -55,6 +57,8 @@ const state = {
     searchQuery: '',
     cart: [],
     orderType: 'dinein',
+    paymentMethod: 'cash',
+    selectedZone: 'all',
     tableNumber: 'طاولة 1',
     activeTableId: null,
     customerName: '',
@@ -114,10 +118,20 @@ function escapeHtml(str) {
 function switchView(viewName) {
     state.currentView = viewName;
 
-    // تحديث أزرار التنقل
+    // تحديث أزرار التنقل العلوية
     document.querySelectorAll('.nav-tab-btn').forEach(btn => btn.classList.remove('active'));
     const activeBtn = document.getElementById(`tab-btn-${viewName}`);
     if (activeBtn) activeBtn.classList.add('active');
+
+    // تحديث أزرار شريط التنقل السفلي للهواتف الذكية
+    document.querySelectorAll('.mobile-nav-btn').forEach(btn => btn.classList.remove('active'));
+    const mobileBtn = document.getElementById(`mobile-nav-${viewName}`);
+    if (mobileBtn) mobileBtn.classList.add('active');
+
+    // إغلاق درج سلة الموبايل عند التنقل
+    if (typeof toggleMobileCart === 'function') {
+        toggleMobileCart(false);
+    }
 
     // إظهار الصفحة المطلوبة
     document.querySelectorAll('.view-page').forEach(page => page.classList.remove('active'));
@@ -131,7 +145,12 @@ function switchView(viewName) {
     if (viewName === 'reports') renderReports();
     if (viewName === 'items') renderItemsManagement();
     if (viewName === 'settings') renderSettingsPage();
-    if (viewName === 'pos') renderCart();
+    if (viewName === 'pos') {
+        renderCart();
+    } else {
+        const mobileBar = document.getElementById('mobile-cart-bar');
+        if (mobileBar) mobileBar.style.display = 'none';
+    }
 }
 
 // =============================================================================
@@ -145,14 +164,26 @@ function loadERPData() {
     }
     if (!state.tables || state.tables.length === 0) {
         state.tables = [
-            { id: 1, name: 'طاولة 1', seats: 4, status: 'vacant', orderItems: [], orderTotal: 0, openedAt: null },
-            { id: 2, name: 'طاولة 2', seats: 2, status: 'vacant', orderItems: [], orderTotal: 0, openedAt: null },
-            { id: 3, name: 'طاولة 3', seats: 6, status: 'occupied', orderItems: [{ name: 'زنجر المدينة', price: 200, quantity: 2 }, { name: 'سفن اب', price: 60, quantity: 2 }], orderTotal: 520, openedAt: '12:30 م' },
-            { id: 4, name: 'طاولة 4', seats: 4, status: 'vacant', orderItems: [], orderTotal: 0, openedAt: null },
-            { id: 5, name: 'طاولة 5', seats: 8, status: 'vacant', orderItems: [], orderTotal: 0, openedAt: null },
-            { id: 6, name: 'VIP 1', seats: 6, status: 'billed', orderItems: [{ name: 'وجبة زنجر المدينة', price: 300, quantity: 3 }], orderTotal: 900, openedAt: '01:15 م' }
+            { id: 1, name: 'طاولة 1', seats: 4, zone: 'indoor', status: 'vacant', orderItems: [], orderTotal: 0, openedAt: null },
+            { id: 2, name: 'طاولة 2', seats: 2, zone: 'indoor', status: 'vacant', orderItems: [], orderTotal: 0, openedAt: null },
+            { id: 3, name: 'طاولة 3', seats: 6, zone: 'outdoor', status: 'occupied', orderItems: [{ name: 'زنجر المدينة', price: 200, quantity: 2 }, { name: 'سفن اب', price: 60, quantity: 2 }], orderTotal: 520, openedAt: '12:30 م' },
+            { id: 4, name: 'طاولة 4', seats: 4, zone: 'outdoor', status: 'vacant', orderItems: [], orderTotal: 0, openedAt: null },
+            { id: 5, name: 'طاولة 5', seats: 8, zone: 'indoor', status: 'vacant', orderItems: [], orderTotal: 0, openedAt: null },
+            { id: 6, name: 'VIP 1', seats: 6, zone: 'vip', status: 'billed', orderItems: [{ name: 'وجبة زنجر المدينة', price: 300, quantity: 3 }], orderTotal: 900, openedAt: '01:15 م' }
         ];
         saveTables();
+    } else {
+        // التأكد من وجود خاصية zone لكل طاولة محفوظة سابقاً
+        let hasZoneUpdates = false;
+        state.tables.forEach(t => {
+            if (!t.zone) {
+                if (t.name && t.name.toLowerCase().includes('vip')) t.zone = 'vip';
+                else if (t.name && (t.name.includes('خارجي') || t.name.includes('تراس'))) t.zone = 'outdoor';
+                else t.zone = 'indoor';
+                hasZoneUpdates = true;
+            }
+        });
+        if (hasZoneUpdates) saveTables();
     }
 
     // 2. الموظفون
@@ -283,6 +314,12 @@ function applySettingsToDOM() {
     }
     document.getElementById('input-currency').value = state.settings.currency || 'ر.س';
     document.getElementById('input-tax').value = state.settings.taxPercent;
+    if (document.getElementById('input-table-service-percent')) {
+        document.getElementById('input-table-service-percent').value = state.settings.tableServicePercent !== undefined ? state.settings.tableServicePercent : 0;
+    }
+    if (document.getElementById('input-card-fee-percent')) {
+        document.getElementById('input-card-fee-percent').value = state.settings.cardFeePercent !== undefined ? state.settings.cardFeePercent : 0;
+    }
     document.getElementById('select-printer-width').value = state.settings.printerWidth || '80mm';
     document.getElementById('check-auto-print').checked = state.settings.autoPrint;
     document.getElementById('check-sound-alert').checked = state.settings.soundAlert;
@@ -674,13 +711,112 @@ function renderCart() {
     updateTotals(subtotal);
 }
 
+function setPaymentMethod(method) {
+    state.paymentMethod = method || 'cash';
+    const btnCash = document.getElementById('pay-method-cash');
+    const btnCard = document.getElementById('pay-method-card');
+    if (btnCash && btnCard) {
+        if (state.paymentMethod === 'cash') {
+            btnCash.classList.add('active');
+            btnCard.classList.remove('active');
+        } else {
+            btnCash.classList.remove('active');
+            btnCard.classList.add('active');
+        }
+    }
+    const subtotal = state.cart.reduce((sum, it) => sum + (it.price * it.quantity), 0);
+    updateTotals(subtotal);
+}
+
+function toggleMobileCart(open) {
+    const cartSection = document.getElementById('pos-cart-section');
+    const overlay = document.getElementById('mobile-cart-overlay');
+    if (!cartSection) return;
+
+    if (open === true) {
+        cartSection.classList.add('mobile-open');
+    } else if (open === false) {
+        cartSection.classList.remove('mobile-open');
+    } else {
+        cartSection.classList.toggle('mobile-open');
+    }
+
+    if (overlay) {
+        if (cartSection.classList.contains('mobile-open')) {
+            overlay.classList.add('active');
+        } else {
+            overlay.classList.remove('active');
+        }
+    }
+}
+
 function updateTotals(subtotal) {
-    const taxRate = (state.settings.taxPercent || 0) / 100;
-    const taxAmount = subtotal * taxRate;
-    const grandTotal = subtotal + taxAmount;
-    document.getElementById('summary-subtotal').textContent = `${subtotal.toFixed(2)} ${state.settings.currency}`;
-    document.getElementById('summary-tax').textContent = `${taxAmount.toFixed(2)} ${state.settings.currency}`;
-    document.getElementById('summary-total').textContent = `${grandTotal.toFixed(2)} ${state.settings.currency}`;
+    if (subtotal === undefined) {
+        subtotal = state.cart.reduce((sum, it) => sum + (it.price * it.quantity), 0);
+    }
+
+    // 1. ضريبة أو خدمة الطاولة (تطبق فقط للطلبات داخل الصالة)
+    const tableServicePercent = (state.orderType === 'dinein') ? Number(state.settings.tableServicePercent || 0) : 0;
+    const tableServiceFee = (subtotal * tableServicePercent) / 100;
+
+    // 2. رسوم الدفع الإلكتروني / الشبكة (تطبق فقط عند اختيار بطاقة)
+    const cardFeePercent = (state.paymentMethod === 'card') ? Number(state.settings.cardFeePercent || 0) : 0;
+    const cardFee = (subtotal * cardFeePercent) / 100;
+
+    // 3. ضريبة القيمة المضافة
+    const taxRate = Number(state.settings.taxPercent || 0) / 100;
+    const taxableBase = subtotal + tableServiceFee + cardFee;
+    const taxAmount = taxableBase * taxRate;
+    const grandTotal = taxableBase + taxAmount;
+
+    // تحديث قيم شاشة الدفع
+    const subtotalEl = document.getElementById('summary-subtotal');
+    if (subtotalEl) subtotalEl.textContent = `${subtotal.toFixed(2)} ${state.settings.currency}`;
+
+    const rowTableService = document.getElementById('row-table-service');
+    const cartTableService = document.getElementById('cart-table-service');
+    if (rowTableService && cartTableService) {
+        if (tableServiceFee > 0) {
+            rowTableService.style.display = 'flex';
+            cartTableService.textContent = `+${tableServiceFee.toFixed(2)} ${state.settings.currency} (${tableServicePercent}%)`;
+        } else {
+            rowTableService.style.display = 'none';
+        }
+    }
+
+    const rowCardFee = document.getElementById('row-card-fee');
+    const cartCardFee = document.getElementById('cart-card-fee');
+    if (rowCardFee && cartCardFee) {
+        if (cardFee > 0) {
+            rowCardFee.style.display = 'flex';
+            cartCardFee.textContent = `+${cardFee.toFixed(2)} ${state.settings.currency} (${cardFeePercent}%)`;
+        } else {
+            rowCardFee.style.display = 'none';
+        }
+    }
+
+    const taxEl = document.getElementById('summary-tax');
+    if (taxEl) taxEl.textContent = `${taxAmount.toFixed(2)} ${state.settings.currency}`;
+
+    const totalEl = document.getElementById('summary-total');
+    if (totalEl) totalEl.textContent = `${grandTotal.toFixed(2)} ${state.settings.currency}`;
+
+    // تحديث شريط السلة العائم للموبايل
+    const totalCount = state.cart.reduce((sum, it) => sum + it.quantity, 0);
+    const mobileCartBar = document.getElementById('mobile-cart-bar');
+    const mobileCartCount = document.getElementById('mobile-cart-count');
+    const mobileCartTotal = document.getElementById('mobile-cart-total');
+
+    if (mobileCartCount) mobileCartCount.textContent = `${totalCount} ${totalCount === 1 ? 'صنف' : 'أصناف'}`;
+    if (mobileCartTotal) mobileCartTotal.textContent = `${grandTotal.toFixed(2)} ${state.settings.currency}`;
+
+    if (mobileCartBar) {
+        if (totalCount > 0 && state.currentView === 'pos') {
+            mobileCartBar.style.display = 'flex';
+        } else {
+            mobileCartBar.style.display = 'none';
+        }
+    }
 }
 
 // حفظ طلب الطاولة جزئياً كطلب معلق بدون تأكيد أو محاسبة
@@ -734,8 +870,14 @@ function saveTableOrderPartial() {
 async function submitOrder() {
     if (state.cart.length === 0) return;
     const subtotal = state.cart.reduce((sum, it) => sum + (it.price * it.quantity), 0);
-    const taxRate = (state.settings.taxPercent || 0) / 100;
-    const grandTotal = subtotal + (subtotal * taxRate);
+    const tableServicePercent = (state.orderType === 'dinein') ? Number(state.settings.tableServicePercent || 0) : 0;
+    const tableServiceFee = (subtotal * tableServicePercent) / 100;
+    const cardFeePercent = (state.paymentMethod === 'card') ? Number(state.settings.cardFeePercent || 0) : 0;
+    const cardFee = (subtotal * cardFeePercent) / 100;
+    const taxRate = Number(state.settings.taxPercent || 0) / 100;
+    const taxableBase = subtotal + tableServiceFee + cardFee;
+    const taxAmount = taxableBase * taxRate;
+    const grandTotal = taxableBase + taxAmount;
 
     const itemsFormatted = state.cart.map(c => ({
         id: c.itemId,
@@ -753,6 +895,11 @@ async function submitOrder() {
         customer_address: state.orderType === 'delivery' ? (document.getElementById('cust-address').value || '') : '',
         table_number: state.orderType === 'dinein' ? tableLabel : '',
         order_type: state.orderType,
+        payment_method: state.paymentMethod || 'cash',
+        subtotal: subtotal,
+        table_service_fee: tableServiceFee,
+        card_fee: cardFee,
+        tax_amount: taxAmount,
         items: itemsFormatted,
         total_price: grandTotal,
         created_at: new Date().toLocaleTimeString('ar-SA')
@@ -809,12 +956,25 @@ async function submitOrder() {
     triggerPrint(orderPayload);
     showToast(`تم تسجيل الفاتورة #${orderId} بنجاح!`, 'success');
     clearCart();
+    toggleMobileCart(false);
     renderReports();
 }
 
 // =============================================================================
 // 2️⃣ إدارة الطاولات وخريطة الصالة (Floor Plan Engine)
 // =============================================================================
+function filterTablesByZone(zone) {
+    state.selectedZone = zone || 'all';
+    document.querySelectorAll('.table-zones-bar .zone-tab').forEach(tab => {
+        if (tab.dataset.zone === state.selectedZone) {
+            tab.classList.add('active');
+        } else {
+            tab.classList.remove('active');
+        }
+    });
+    renderTables();
+}
+
 function renderTables() {
     const grid = document.getElementById('tables-grid-container');
     if (!grid) return;
@@ -830,10 +990,50 @@ function renderTables() {
     document.getElementById('kpi-occupied-tables').textContent = occupied;
     document.getElementById('kpi-tables-revenue').textContent = `${revenue.toFixed(2)} ${state.settings.currency}`;
 
-    state.tables.forEach(table => {
+    // تحديث أعداد الطاولات حسب المناطق
+    const countAll = state.tables.length;
+    const countIndoor = state.tables.filter(t => (t.zone || 'indoor') === 'indoor').length;
+    const countOutdoor = state.tables.filter(t => t.zone === 'outdoor').length;
+    const countVip = state.tables.filter(t => t.zone === 'vip').length;
+
+    const elCountAll = document.getElementById('count-zone-all');
+    const elCountIndoor = document.getElementById('count-zone-indoor');
+    const elCountOutdoor = document.getElementById('count-zone-outdoor');
+    const elCountVip = document.getElementById('count-zone-vip');
+    if (elCountAll) elCountAll.textContent = countAll;
+    if (elCountIndoor) elCountIndoor.textContent = countIndoor;
+    if (elCountOutdoor) elCountOutdoor.textContent = countOutdoor;
+    if (elCountVip) elCountVip.textContent = countVip;
+
+    // فلترة الطاولات حسب المنطقة المختارة
+    let displayedTables = state.tables;
+    if (state.selectedZone && state.selectedZone !== 'all') {
+        displayedTables = state.tables.filter(t => (t.zone || 'indoor') === state.selectedZone);
+    }
+
+    if (displayedTables.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 40px 20px; color: #94a3b8;">
+                <i class="fas fa-layer-group" style="font-size: 2.5rem; margin-bottom: 12px; opacity: 0.5;"></i>
+                <div style="font-weight: 700; font-size: 1.1rem; color: #64748b;">لا توجد طاولات في هذا القسم حالياً</div>
+                <p style="margin-top: 6px; font-size: 0.85rem;">يمكنك إضافة طاولة جديدة وتحديد منطقتها من زر "إضافة طاولة جديدة"</p>
+            </div>
+        `;
+        return;
+    }
+
+    displayedTables.forEach(table => {
         const card = document.createElement('div');
         const statusClass = table.status === 'vacant' ? 'vacant' : (table.status === 'occupied' ? 'occupied' : 'billed');
         const statusText = table.status === 'vacant' ? 'فارغة (متاحة)' : (table.status === 'occupied' ? 'مشغولة' : 'فاتورة مطلوبة');
+
+        const zoneKey = table.zone || 'indoor';
+        const zoneLabels = {
+            'indoor': { text: 'صالة داخلية', icon: 'fa-couch' },
+            'outdoor': { text: 'جلسة خارجية', icon: 'fa-sun' },
+            'vip': { text: 'VIP عوائل', icon: 'fa-crown' }
+        };
+        const zoneInfo = zoneLabels[zoneKey] || zoneLabels['indoor'];
 
         let itemsSummaryHtml = '<div style="color: #94a3b8;">لا توجد طلبات جارية</div>';
         if (table.orderItems && table.orderItems.length > 0) {
@@ -853,7 +1053,10 @@ function renderTables() {
                     <i class="fas fa-chair"></i>
                     <span>${escapeHtml(table.name)}</span>
                 </div>
-                <span class="table-status-pill ${statusClass}">${statusText}</span>
+                <div style="display: flex; gap: 4px; align-items: center; flex-wrap: wrap; justify-content: flex-end;">
+                    <span class="table-zone-badge ${zoneKey}"><i class="fas ${zoneInfo.icon}"></i> ${zoneInfo.text}</span>
+                    <span class="table-status-pill ${statusClass}">${statusText}</span>
+                </div>
             </div>
             <div class="table-card-body">
                 <div><i class="fas fa-user-friends"></i> السعة: ${table.seats || 4} كراسي</div>
@@ -1389,9 +1592,13 @@ function triggerPrint(order) {
         `;
     });
 
+    const tableServiceFee = Number(order.table_service_fee || 0);
+    const cardFee = Number(order.card_fee || 0);
     const taxRate = Number(state.settings.taxPercent || 0);
-    const taxAmount = (subtotalCalc * taxRate) / 100;
-    const grandTotal = subtotalCalc + taxAmount;
+    const taxableBase = subtotalCalc + tableServiceFee + cardFee;
+    const taxAmount = Number(order.tax_amount !== undefined ? order.tax_amount : (taxableBase * taxRate) / 100);
+    const grandTotal = Number(order.total_price || (taxableBase + taxAmount));
+    const payMethod = order.payment_method || 'cash';
 
     const storeTitle = state.settings.storeName || 'مطعمي';
     const storeAddress = state.settings.storeAddress || 'حلب-الصاخور-سوق الخضرامن الطرف القبلي اول شارع المكاتب من فوق';
@@ -1440,11 +1647,21 @@ function triggerPrint(order) {
             
             <div class="totals-box">
                 <div class="total-row"><span>الإجمالي الفرعي:</span><span>${subtotalCalc.toFixed(2)}</span></div>
-                ${taxAmount > 0 ? `<div class="total-row"><span>ضريبة مضافة:</span><span>${taxAmount.toFixed(2)}</span></div>` : ''}
+                ${tableServiceFee > 0 ? `
+                <div class="total-row"><span>خدمة الطاولة (${state.settings.tableServicePercent || 0}%):</span><span>+${tableServiceFee.toFixed(2)}</span></div>
+                ` : ''}
+                ${cardFee > 0 ? `
+                <div class="total-row"><span>رسوم الدفع بالبطاقة (${state.settings.cardFeePercent || 0}%):</span><span>+${cardFee.toFixed(2)}</span></div>
+                ` : ''}
+                ${taxAmount > 0 ? `<div class="total-row"><span>ضريبة مضافة (${taxRate}%):</span><span>${taxAmount.toFixed(2)}</span></div>` : ''}
                 
                 <div class="grand-total">
                     <span>الصافي (${state.settings.currency}):</span>
                     <span>${grandTotal.toFixed(2)}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 11px; margin-top: 6px; color: #475569; border-top: 1px dashed #cbd5e1; padding-top: 4px;">
+                    <span>طريقة الدفع:</span>
+                    <span><strong>${payMethod === 'card' ? '💳 شبكة / بطاقة' : '💵 نقداً (كاش)'}</strong></span>
                 </div>
             </div>
             
@@ -1641,6 +1858,9 @@ function initEventListeners() {
                 tableWrap.style.display = 'none';
                 deliveryWrap.style.display = 'none';
             }
+            // إعادة حساب الرسوم بحسب نوع الطلب المختار (صالة = رسوم طاولة)
+            const subtotal = state.cart.reduce((sum, it) => sum + (it.price * it.quantity), 0);
+            updateTotals(subtotal);
         });
     });
 
@@ -1649,12 +1869,14 @@ function initEventListeners() {
         e.preventDefault();
         const name = document.getElementById('input-new-table-name').value.trim();
         const seats = parseInt(document.getElementById('input-new-table-seats').value) || 4;
+        const zone = document.getElementById('input-new-table-zone')?.value || 'indoor';
         const notes = document.getElementById('input-new-table-notes').value.trim();
 
         const newTable = {
             id: Date.now(),
             name,
             seats,
+            zone,
             notes,
             status: 'vacant',
             orderItems: [],
@@ -1844,6 +2066,8 @@ function initEventListeners() {
         state.settings.storeAddress = document.getElementById('input-store-address')?.value.trim() || '';
         state.settings.currency = document.getElementById('input-currency').value.trim() || 'ر.س';
         state.settings.taxPercent = parseFloat(document.getElementById('input-tax').value) || 0;
+        state.settings.tableServicePercent = parseFloat(document.getElementById('input-table-service-percent')?.value) || 0;
+        state.settings.cardFeePercent = parseFloat(document.getElementById('input-card-fee-percent')?.value) || 0;
         state.settings.printerWidth = document.getElementById('select-printer-width').value;
         state.settings.autoPrint = document.getElementById('check-auto-print').checked;
         state.settings.soundAlert = document.getElementById('check-sound-alert').checked;
@@ -2204,6 +2428,8 @@ function renderSettingsPage() {
     if (document.getElementById('setting-currency')) document.getElementById('setting-currency').value = s.currency || 'ر.س';
     if (document.getElementById('setting-store-address')) document.getElementById('setting-store-address').value = s.storeAddress || '';
     if (document.getElementById('setting-tax-percent')) document.getElementById('setting-tax-percent').value = s.taxPercent !== undefined ? s.taxPercent : 15;
+    if (document.getElementById('setting-table-service-percent')) document.getElementById('setting-table-service-percent').value = s.tableServicePercent !== undefined ? s.tableServicePercent : 0;
+    if (document.getElementById('setting-card-fee-percent')) document.getElementById('setting-card-fee-percent').value = s.cardFeePercent !== undefined ? s.cardFeePercent : 0;
     if (document.getElementById('setting-printer-width')) document.getElementById('setting-printer-width').value = s.printerWidth || '80mm';
     if (document.getElementById('setting-receipt-footer')) document.getElementById('setting-receipt-footer').value = s.receiptFooter || '';
     if (document.getElementById('setting-auto-print')) document.getElementById('setting-auto-print').checked = s.autoPrint !== false;
@@ -2219,6 +2445,8 @@ function saveFullSettingsFromPage() {
     state.settings.currency = document.getElementById('setting-currency')?.value.trim() || 'ر.س';
     state.settings.storeAddress = document.getElementById('setting-store-address')?.value.trim() || '';
     state.settings.taxPercent = parseFloat(document.getElementById('setting-tax-percent')?.value) || 0;
+    state.settings.tableServicePercent = parseFloat(document.getElementById('setting-table-service-percent')?.value) || 0;
+    state.settings.cardFeePercent = parseFloat(document.getElementById('setting-card-fee-percent')?.value) || 0;
     state.settings.printerWidth = document.getElementById('setting-printer-width')?.value || '80mm';
     state.settings.receiptFooter = document.getElementById('setting-receipt-footer')?.value.trim() || '';
     state.settings.autoPrint = document.getElementById('setting-auto-print')?.checked ?? true;
@@ -2429,4 +2657,10 @@ window.addEventListener('offline', () => {
     updateUIConnectionStatus('offline', 'يعمل بدون إنترنت (Offline)');
     showToast('انقطع الاتصال بالإنترنت، التطبيق يعمل بكامل كفاءته بدون توقف (Offline-First)', 'warning');
 });
+
+// إتاحة الدوال الجديدة للنطاق العام (Global Scope)
+window.setPaymentMethod = setPaymentMethod;
+window.toggleMobileCart = toggleMobileCart;
+window.filterTablesByZone = filterTablesByZone;
+
 
